@@ -1,6 +1,6 @@
 # 포스텍 트리 — 제품 스펙
 
-> 마지막 갱신: 2026-11-14 (plan.md 기술 스택 작업 가이드 규칙: 7장 · 작업 관리 규칙 추가: 7장 · 프론트엔드·서버 역할 분리: 2장 · 기술 스택 확정: 1.1, 3~6장) · 작업을 시작하기 전에 이 문서를 먼저 고치고, 구현 단계는 [`plan.md`](./plan.md)에 체크리스트로 남깁니다.
+> 마지막 갱신: 2026-11-15 (QA용 데모 배포·공유 주소 기본값: 1.1 · plan.md 기술 스택 작업 가이드 규칙: 7장 · 작업 관리 규칙 추가: 7장 · 프론트엔드·서버 역할 분리: 2장 · 기술 스택 확정: 1.1, 3~6장) · 작업을 시작하기 전에 이 문서를 먼저 고치고, 구현 단계는 [`plan.md`](./plan.md)에 체크리스트로 남깁니다.
 
 ## 1. 개요
 - **목표**: POSTECH 학생들이 인스타그램에 자기 트리 링크를 올리고, 친구들이 **익명 편지**를 장식으로 달아주는 연말 이벤트. 편지는 **12/25 00:00 KST**에 열린다.
@@ -33,6 +33,7 @@
 | 편지 저장 | Postgres 함수 `submit_letter()` — 트리 확인·작성 제한·INSERT를 한 트랜잭션에서 처리 | **변경** (기존: API에서 개수 조회 후 INSERT. 수정 범위 `/api/letters`, 마이그레이션 `0002`) |
 | 작성 제한 | 브라우저 ID(`anon_id` 쿠키) + IP 기준 | **변경** (기존 IP만 기준이라 캠퍼스망에서 서로 막힐 수 있음. 4.4) |
 | 호스팅 | Vercel (Hobby) · PR마다 Preview 배포 | 유지 |
+| QA용 데모 배포 | 실서버(S1~S3)보다 먼저 **환경변수 없이** Vercel에 배포 → 데모 모드 HTTPS 주소(`https://<프로젝트>.vercel.app/t/demo`). 인앱 브라우저·실기기 QA(C1·C2)는 이 주소로 한다. 실서버 배포(S4)는 같은 Vercel 프로젝트에 환경변수·도메인을 더한다 | **신규** (S16. 인스타·카톡 링크와 `navigator.share`는 HTTPS 주소가 필요) |
 | CI | GitHub Actions — lint · typecheck · build + 빈 Postgres 컨테이너에서 `scripts/test-rls.sql` | **신규** (기존 스크립트 그대로 사용) |
 | 관측 | Vercel Analytics (유입) · Sentry (오류, **선택**) | **신규** |
 | 도메인 | 고정 도메인 구매 권장 (연 1~2만 원) | **신규** (6장 결정 필요) |
@@ -52,7 +53,7 @@
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 공개 | Supabase 클라이언트 |
 | `SUPABASE_SERVICE_ROLE_KEY` | **서버 전용** | `submit_letter()` 호출 |
 | `IP_HASH_SALT` | **서버 전용** | IP·브라우저 ID 해시 솔트 |
-| `NEXT_PUBLIC_SITE_URL` | 공개 | 공유 링크·OG 기준 주소 |
+| `NEXT_PUBLIC_SITE_URL` | 공개 | 공유 링크·OG 기준 주소. 없으면 Vercel이 넣어 주는 배포 주소(프로덕션은 `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`, Preview는 `NEXT_PUBLIC_VERCEL_URL`), 그것도 없으면 `http://localhost:3000` |
 | `NEXT_PUBLIC_KAKAO_JS_KEY` | 공개 | (선택) 카카오톡 공유 |
 | `NEXT_PUBLIC_SENTRY_DSN` | 공개 | (선택) 오류 수집 |
 

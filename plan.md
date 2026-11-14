@@ -132,7 +132,7 @@
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 공개 | `lib/supabase/*`, `middleware.ts` |
 | `SUPABASE_SERVICE_ROLE_KEY` | **서버 전용** | `createAdminClient()` → `app/api/**`에서만 |
 | `IP_HASH_SALT` | **서버 전용** | `/api/letters` 해시 |
-| `NEXT_PUBLIC_SITE_URL` | 공개 | `SITE_URL` (공유 링크, `metadataBase`) |
+| `NEXT_PUBLIC_SITE_URL` | 공개 | `SITE_URL` (공유 링크, `metadataBase`). 없으면 Vercel 배포 주소(`NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`·`NEXT_PUBLIC_VERCEL_URL`) → `http://localhost:3000` 순 |
 | `NEXT_PUBLIC_REVEAL_AT` | 공개 | `REVEAL_AT` 표시용 기본값. 실제 공개는 DB `app_config.reveal_at` |
 | `NEXT_PUBLIC_KAKAO_JS_KEY`, `NEXT_PUBLIC_SENTRY_DSN` | 공개 | (선택) C11, S15 |
 
@@ -172,9 +172,9 @@ npm run typecheck    # 커밋 전 필수 (tsc --noEmit)
 ---
 
 <!-- timeline:start -->
-<!-- 타임라인에서 생성됨 (2026-11-14). 손으로 고치지 말고 타임라인을 고친 뒤 scripts/sync-plan.mjs를 실행하세요. -->
+<!-- 타임라인에서 생성됨 (2026-11-15). 손으로 고치지 말고 타임라인을 고친 뒤 scripts/sync-plan.mjs를 실행하세요. -->
 
-> 타임라인 동기화: 2026-11-14 · 작업 46개 중 1개 완료 · ⭐ 핵심 작업
+> 타임라인 동기화: 2026-11-15 · 작업 47개 중 1개 완료 · ⭐ 핵심 작업
 
 ## 🎨 디자인 · (담당 미정)
 > 아이덴티티, 일러스트, 아이콘, 공유 이미지
@@ -305,6 +305,15 @@ npm run typecheck    # 커밋 전 필수 (tsc --noEmit)
     - 구글 OAuth 클라이언트
     - Supabase Provider 설정
   - 산출물: 로그인 동작
+- [ ] **S16** QA용 데모 배포 (Vercel, 환경변수 없이) · 11/15(일) ⭐
+  - C1·C2 QA에 HTTPS 주소가 필요한데 실서버 배포(S4)는 11/19 이후라, 데모 모드로 먼저 배포. spec.md 1.1.
+  - 할 일
+    - Vercel에 GitHub 저장소 가져오기 (환경변수 넣지 않음)
+    - main 배포 → https://<프로젝트>.vercel.app/t/demo 확인
+    - 공유 링크가 localhost가 아닌 배포 주소로 나오는지 확인
+    - 주소를 클라이언트에게 전달
+  - 산출물: 데모 HTTPS 주소
+  - 완료 기준: 휴대폰에서 /t/demo가 열리고 공유 링크가 배포 주소로 나옴
 - [ ] **S11** submit_letter() 마이그레이션·RLS 테스트 · 11/15(일)–11/17(화) · 선행: S1 ⭐
   - 검증·작성 제한·저장을 DB 함수 하나에서 한 트랜잭션으로 처리. spec.md 5.3.
   - 할 일
@@ -339,6 +348,7 @@ npm run typecheck    # 커밋 전 필수 (tsc --noEmit)
   - 완료 기준: M1 통과
 ### ~11/26 M2 반영·배포
 - [ ] **S4** 도메인·Vercel 배포·환경변수 · 11/19(목)–11/21(토) · 선행: S3
+  - S16에서 만든 Vercel 프로젝트에 환경변수·도메인을 더해 실서버로 전환.
   - 할 일
     - 도메인 결정·구매 → Vercel 연결
     - 환경변수 (spec.md 1.1 표)
@@ -376,7 +386,7 @@ npm run typecheck    # 커밋 전 필수 (tsc --noEmit)
 ## 📱 클라이언트 · 람쥐썬더
 > 트리 화면 인터랙션, 연출, 실기기 QA
 ### ~11/19 M1 시안·실서버
-- [ ] **C1** 인앱 브라우저 QA (인스타·카톡) · 11/13(금)–11/17(화)
+- [ ] **C1** 인앱 브라우저 QA (인스타·카톡) · 11/13(금)–11/17(화) · 선행: S16
   - 대부분 인스타 링크로 들어오므로 가장 먼저.
   - 할 일
     - 링크 열기
@@ -385,7 +395,7 @@ npm run typecheck    # 커밋 전 필수 (tsc --noEmit)
     - navigator.share({ files }) 지원 여부 (iOS·Android)
     - 키보드가 입력창을 가리는지
   - 산출물: 이슈 목록 (client 라벨)
-- [ ] **C2** 실기기·성능 QA · 11/16(월)–11/19(목)
+- [ ] **C2** 실기기·성능 QA · 11/16(월)–11/19(목) · 선행: S16
   - 할 일
     - iOS Safari
     - Android Chrome

@@ -170,7 +170,8 @@ export default function TreeScene({ theme, ornaments, season, onOrnamentClick, s
         {starMode === "aplus" ? "🅰️" : "⭐"}
       </button>
 
-      {/* 장식(편지) */}
+      {/* 장식(편지). 페이지가 바뀌면 key가 바뀌어 장식 묶음만 다시 들어온다 (.page-anim 안에서만 애니메이션). */}
+      <div key={ornaments[0]?.id ?? "empty"} className="orn-page pointer-events-none absolute inset-0">
       {ornaments.slice(0, SLOTS_PER_PAGE).map((o, i) => {
         const [x, y] = SLOTS[i];
         const orn = findOrnament(o.ornament_type);
@@ -179,7 +180,7 @@ export default function TreeScene({ theme, ornaments, season, onOrnamentClick, s
             key={o.id}
             type="button"
             onClick={() => onOrnamentClick?.(o)}
-            className={`absolute flex w-[15%] -translate-x-1/2 -translate-y-1/2 flex-col items-center ${o.isNew ? "pop-in" : ""}`}
+            className={`pointer-events-auto absolute flex w-[15%] -translate-x-1/2 -translate-y-1/2 flex-col items-center ${o.isNew ? "pop-in" : ""}`}
             style={{ left: `${(x / 300) * 100}%`, top: `${(y / 370) * 100}%` }}
             aria-label={`${o.nickname}의 ${orn.label} 장식`}
           >
@@ -196,6 +197,7 @@ export default function TreeScene({ theme, ornaments, season, onOrnamentClick, s
           </button>
         );
       })}
+      </div>
 
       {/* D-3 부터 선물 상자 */}
       {[[24, 91], [72, 92], [61, 94]].slice(0, gifts).map(([l, t], i) => (

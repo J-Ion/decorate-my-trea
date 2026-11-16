@@ -9,6 +9,7 @@ import Countdown from "@/components/Countdown";
 import Snow from "@/components/Snow";
 import { createClient } from "@/lib/supabase/client";
 import { TOTAL_BULBS } from "@/lib/season";
+import { useRevealRefresh } from "@/components/useRevealRefresh";
 
 type Props = {
   tree: { id: string; slug: string; title: string; owner_name: string; theme: string; kind: string; description: string | null };
@@ -70,6 +71,8 @@ export default function TreeView(p: Props) {
   const letterMap = useMemo(() => new Map((p.letters ?? []).map((l) => [l.id, l])), [p.letters]);
   const isSpecial = p.tree.kind !== "user";
   const revealed = p.season.revealed;
+  // 0시에 요청을 흩는 범위: 편지를 읽을 주인은 짧게, 방문자는 길게 (spec.md 4.5)
+  const revealPhase = useRevealRefresh(p.revealAt, revealed, p.isOwner ? 30_000 : 120_000);
 
   function say(m: string) {
     setNotice(m);
@@ -177,6 +180,14 @@ export default function TreeView(p: Props) {
             <button type="button" className="btn btn-ghost !px-3 !py-1" disabled={page === pages - 1} onClick={() => go(page + 1)} aria-label="다음 트리">▶</button>
             <button type="button" className="btn btn-ghost !px-3 !py-1 text-xs" disabled={page === pages - 1} onClick={() => go(pages - 1)}>최신</button>
           </nav>
+        )}
+
+        {revealPhase !== "idle" && (
+          <div role="status" className="pop-in fixed inset-x-0 top-4 z-40 mx-auto w-max max-w-[90%] rounded-full bg-black/75 px-4 py-2 text-sm text-white">
+            {revealPhase === "opening"
+              ? "🎁 산타가 편지를 꺼내는 중이에요…"
+              : "🎅 편지 상자가 붐벼요. 잠시 뒤 새로고침해 주세요"}
+          </div>
         )}
 
         {notice && (

@@ -1,14 +1,12 @@
 # 포스텍 트리 — 구현 계획
 
-> 마지막 갱신: 2026-11-14 (타임라인 기준·작업 번호 체계, 스펙 7장)
+> 마지막 갱신: 2026-11-16 (작업 가이드 중복 제거: 제약·명령어는 CLAUDE.md, 환경변수는 spec.md 1.1로)
 > 📅 **기준은 [타임라인 (간트 차트)](https://claude.ai/artifact/XZPtaxuvxWC3hkFvo1VyNi)** 입니다. 사람은 타임라인을 보고 일하고, 작업 추가·일정·완료 체크도 타임라인에서 합니다.
 > 이 문서의 작업 목록은 타임라인의 사본이라 **손으로 고치지 않습니다.** 타임라인을 바꾼 뒤 `node scripts/sync-plan.mjs <타임라인 HTML>`로 다시 만듭니다. 둘이 다르면 타임라인이 맞습니다.
 > 표기: 🎨 디자인(D) · 🖥 프론트엔드(F) · 🛠 서버(S) · 📱 클라이언트(C) · 👥 공통(T) · 스펙은 [`spec.md`](./spec.md)
 
 ## Claude에게 맡기기
-- 작업 번호로 요청합니다: "**S11 해줘**", "**C7 해줘**"
-- Claude는 `CLAUDE.md`의 "작업 번호로 요청받았을 때" 절차대로 선행 작업 확인 → 스펙 확인 → `task/<번호>` 브랜치에서 작업 → 검증 → 완료 체크까지 진행합니다.
-- 디자인 시안, 외부 콘솔 설정(OAuth·도메인·Vercel·Supabase 대시보드), 실기기 QA, 베타, 공지는 사람이 해야 하는 일입니다. Claude는 이런 단계를 따라 할 수 있는 안내로 정리해 줍니다.
+- 작업 번호로 요청합니다: "**S11 해줘**", "**C7 해줘**". Claude가 따르는 절차와 사람이 맡는 일은 `CLAUDE.md`의 "작업 번호로 요청받았을 때"에 있습니다.
 
 ## 마일스톤
 
@@ -30,7 +28,7 @@
 - [x] Supabase 없이 도는 데모 모드 (`/t/demo`, `/t/prof-demo`)
 
 ## 기술 스택 · 작업 가이드 (AI가 작업 전에 읽을 것)
-> 이 절은 타임라인 마커 밖에 있어 동기화로 지워지지 않습니다. 결정의 기준은 `spec.md` 1.1(스택)·2장(역할·계약)·4~5장(규칙·API·DB)이고, 바뀌면 spec.md를 먼저 고친 뒤 같은 커밋에서 이 절도 맞춥니다. (2026-11-14 코드 기준)
+> 이 절은 타임라인 마커 밖에 있어 동기화로 지워지지 않습니다. 코드를 **어떻게** 짜는지만 적습니다. 결정·규칙은 `spec.md`(1.1 스택·환경변수, 2장 역할·계약, 4~5장 규칙·API·DB), 꼭 지킬 제약·작업 절차·명령어·검증은 `CLAUDE.md`에만 있고 여기에 다시 적지 않습니다. (2026-11-14 코드 기준)
 
 ### 한눈에 보기
 ```
@@ -111,7 +109,7 @@
 | 관측 | 없음 | Vercel Analytics, (선택) Sentry | **S15** |
 | 카카오톡 공유 | 링크 복사·Web Share | (선택) Kakao JS SDK, `lib/kakao.ts` | **C11** |
 
-`POST /api/letters`의 요청·응답 형식은 바뀌지 않습니다 (spec.md 5.2). **하지 않기로 한 것**은 쓰지 않습니다: Turnstile, `next/og`, Supabase CLI, Playwright, Firebase, 별도 백엔드, Upstash Redis, 애니메이션 라이브러리.
+`POST /api/letters`의 요청·응답 형식은 바뀌지 않습니다 (spec.md 5.2). spec.md 1.1의 "필요해지면 추가"·"쓰지 않기로 한 것"에 있는 기술은 쓰지 않습니다.
 
 ### 인증
 - 공급자: 카카오·구글 OAuth (`signInWithOAuth`, `redirectTo` = `/auth/callback?next=…`). 코드에는 이메일 OTP 로그인도 있음 (`signInWithOtp`).
@@ -126,45 +124,14 @@
 - 새 조회 함수를 만들면 **데모 분기(`if (!isConfigured) return …`)도 함께** 넣어 데모 모드가 깨지지 않게 합니다.
 - `?dday=N`(0~60)은 개발·데모 모드에서만 연출을 바꾸며 열람 권한과 무관합니다.
 
-### 환경변수 (`.env.local`, Vercel 동일 · 예시는 `.env.example`)
-| 이름 | 범위 | 쓰는 곳 |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 공개 | `lib/supabase/*`, `middleware.ts` |
-| `SUPABASE_SERVICE_ROLE_KEY` | **서버 전용** | `createAdminClient()` → `app/api/**`에서만 |
-| `IP_HASH_SALT` | **서버 전용** | `/api/letters` 해시 |
-| `NEXT_PUBLIC_SITE_URL` | 공개 | `SITE_URL` (공유 링크, `metadataBase`). 없으면 Vercel 배포 주소(`NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`·`NEXT_PUBLIC_VERCEL_URL`) → `http://localhost:3000` 순 |
-| `NEXT_PUBLIC_REVEAL_AT` | 공개 | `REVEAL_AT` 표시용 기본값. 실제 공개는 DB `app_config.reveal_at` |
-| `NEXT_PUBLIC_KAKAO_JS_KEY`, `NEXT_PUBLIC_SENTRY_DSN` | 공개 | (선택) C11, S15 |
-
-`NEXT_PUBLIC_` 없는 값은 클라이언트 컴포넌트에서 읽지 않습니다. 키 값을 코드·문서·커밋에 넣지 않습니다.
-
 ### 스타일·연출
 - Tailwind v4 유틸리티 + `app/globals.css`의 공용 클래스: `.card`, `.btn` / `.btn-primary` / `.btn-light` / `.btn-ghost`, `.font-display`.
 - 토큰(`@theme`): `--font-sans`(Gowun Dodum), `--font-display`(Jua), `--color-pine #1f7a45`, `--color-berry #c8102e`, `--color-cream #fff8ec`. 배경 `#0f2a44`. 디자인 확정(**D2**) 후 이 토큰을 바꿉니다.
 - 애니메이션은 CSS `@keyframes`(`sway`, `pop-in`, `twinkle`, `sleigh`, `cry`, `shake`)와 `canvas-confetti`만 씁니다.
 - 모바일 우선 (`min-h-dvh`, `maximumScale: 1`). 대부분 인앱 브라우저라 `download` 속성·팝업·서드파티 쿠키에 기대지 않습니다.
-- 장식 id(`lib/constants.ts`)는 DB에 저장되므로 **바꾸거나 지우지 않고** 추가만 합니다. 학과 장식은 `dept-<학과id>`.
+- 장식 id는 추가만 합니다 (CLAUDE.md 제약). 학과 장식은 `dept-<학과id>`.
 
-### 꼭 지킬 제약 (CLAUDE.md와 같음)
-1. 편지 본문 공개는 DB RLS(`is_revealed()`)가 강제합니다. 클라이언트 시간·`REVEAL_AT`으로 열람을 판단하지 않습니다.
-2. `is_confession`은 공개 전 어떤 응답에도 넣지 않습니다 (홈 집계 숫자만).
-3. `SUPABASE_SERVICE_ROLE_KEY`·`createAdminClient()`는 `app/api/**`의 서버 코드에서만.
-4. 프론트엔드는 `app/actions.ts`·`lib/data.ts`를 호출만 합니다. 함수 이름·인자·반환 타입이 바뀌면 spec.md 2.2부터 고칩니다.
-
-### 명령어와 검증
-```bash
-npm install          # 처음 한 번
-npm run dev          # http://localhost:3000 (환경변수 없으면 데모 모드)
-npm run build        # 커밋 전 필수
-npm run lint         # 커밋 전 필수
-npm run typecheck    # 커밋 전 필수 (tsc --noEmit)
-```
-- DB를 바꿨으면: 빈 로컬 Postgres에서 `psql -d <빈DB> -f supabase/migrations/0001_init.sql`(및 새 마이그레이션) 적용 후 `psql -d <빈DB> -f scripts/test-rls.sql`. 새 권한 규칙은 `test-rls.sql`에 케이스를 추가합니다. **Supabase 프로젝트에는 절대 돌리지 않습니다.**
-- 화면을 바꿨으면 데모 모드에서 `/`, `/t/demo`, `/t/prof-demo`, `/t/demo?dday=7`, `/?dday=0`을 모바일 폭(375px)으로 확인합니다.
-- 자동 E2E 테스트는 없습니다. 실기기·인앱 브라우저 확인은 사람이 합니다 (**C1**, **C2**).
-
-### 작업 규칙 요약
-- 브랜치 `task/<번호>-<짧은-설명>`, 커밋 `<번호>: <요약>`. 푸시·PR은 요청받을 때만.
+### 코드 작성 규칙
 - UI 문구·에러 메시지·주석은 한국어. 에러는 사용자에게 다정한 문장으로 (예: "루돌프가 숨 고르는 중이에요").
 - 사용자 입력은 서버에서 다시 자르고 검증합니다 (`trim().slice(0, n)`, DB `check` 제약과 같은 길이).
 - 마이그레이션은 새 번호 파일(`0002_…`)로 추가하고 기존 파일은 고치지 않습니다. 재실행해도 안전하게 `if not exists`·`create or replace`·`drop policy if exists`를 씁니다.

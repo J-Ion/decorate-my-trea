@@ -1,6 +1,6 @@
 # 포스텍 트리 — 제품 스펙
 
-> 마지막 갱신: 2026-11-15 (QA용 데모 배포·공유 주소 기본값: 1.1 · plan.md 기술 스택 작업 가이드 규칙: 7장 · 작업 관리 규칙 추가: 7장 · 프론트엔드·서버 역할 분리: 2장 · 기술 스택 확정: 1.1, 3~6장) · 작업을 시작하기 전에 이 문서를 먼저 고치고, 구현 단계는 [`plan.md`](./plan.md)에 체크리스트로 남깁니다.
+> 마지막 갱신: 2026-11-16 (문서 간 중복 제거·환경변수 표 통합: 1.1, 7장 · QA용 데모 배포·공유 주소 기본값: 1.1 · plan.md 기술 스택 작업 가이드 규칙: 7장 · 작업 관리 규칙 추가: 7장 · 프론트엔드·서버 역할 분리: 2장 · 기술 스택 확정: 1.1, 3~6장) · 작업을 시작하기 전에 이 문서를 먼저 고치고, 구현 단계는 [`plan.md`](./plan.md)에 체크리스트로 남깁니다.
 
 ## 1. 개요
 - **목표**: POSTECH 학생들이 인스타그램에 자기 트리 링크를 올리고, 친구들이 **익명 편지**를 장식으로 달아주는 연말 이벤트. 편지는 **12/25 00:00 KST**에 열린다.
@@ -46,16 +46,17 @@
 
 **쓰지 않기로 한 것**: Firebase (행 단위 공개 규칙을 짜고 테스트하기 어려움), 별도 백엔드 서버 (운영 부담), 네이티브 앱 (인스타 링크에서 바로 써야 함), Upstash Redis (Postgres 함수로 충분)
 
-**환경변수** (`.env.local`, Vercel 동일)
+**환경변수** (`.env.local`, Vercel 동일 · 예시는 `.env.example`) — 환경변수 목록은 여기에만 적는다.
 
-| 이름 | 공개 여부 | 용도 |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 공개 | Supabase 클라이언트 |
-| `SUPABASE_SERVICE_ROLE_KEY` | **서버 전용** | `submit_letter()` 호출 |
-| `IP_HASH_SALT` | **서버 전용** | IP·브라우저 ID 해시 솔트 |
-| `NEXT_PUBLIC_SITE_URL` | 공개 | 공유 링크·OG 기준 주소. 없으면 Vercel이 넣어 주는 배포 주소(프로덕션은 `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`, Preview는 `NEXT_PUBLIC_VERCEL_URL`), 그것도 없으면 `http://localhost:3000` |
-| `NEXT_PUBLIC_KAKAO_JS_KEY` | 공개 | (선택) 카카오톡 공유 |
-| `NEXT_PUBLIC_SENTRY_DSN` | 공개 | (선택) 오류 수집 |
+| 이름 | 공개 여부 | 용도 | 쓰는 곳 |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 공개 | Supabase 클라이언트. 없으면 데모 모드 | `lib/supabase/*`, `middleware.ts` |
+| `SUPABASE_SERVICE_ROLE_KEY` | **서버 전용** | `submit_letter()` 호출 | `createAdminClient()` → `app/api/**`에서만 |
+| `IP_HASH_SALT` | **서버 전용** | IP·브라우저 ID 해시 솔트 | `/api/letters` |
+| `NEXT_PUBLIC_SITE_URL` | 공개 | 공유 링크·OG 기준 주소. 없으면 Vercel이 넣어 주는 배포 주소(프로덕션은 `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`, Preview는 `NEXT_PUBLIC_VERCEL_URL`), 그것도 없으면 `http://localhost:3000` | `SITE_URL` (`lib/constants.ts`, `metadataBase`) |
+| `NEXT_PUBLIC_REVEAL_AT` | 공개 | 공개 시각 표시용 기본값. 실제 공개는 DB `app_config.reveal_at` | `REVEAL_AT` (`lib/constants.ts`) |
+| `NEXT_PUBLIC_KAKAO_JS_KEY` | 공개 | (선택) 카카오톡 공유 | `lib/kakao.ts` (C11) |
+| `NEXT_PUBLIC_SENTRY_DSN` | 공개 | (선택) 오류 수집 | Sentry 설정 (S15) |
 
 **비용**: 도메인 외 0원 (Vercel Hobby는 비상업 용도 한정, Supabase Free는 약 1주일 미사용 시 일시정지되니 개발 공백 주의)
 
@@ -188,5 +189,6 @@
 - **동기화**: 타임라인을 바꾸면 `node scripts/sync-plan.mjs <타임라인 HTML 또는 state JSON>`으로 plan.md를 다시 만들어 커밋한다. 스크립트는 타임라인 페이지의 `<script id="state">` JSON을 읽어 마커 사이만 교체한다.
 - **타임라인에 아직 없는 작업**: 타임라인을 고칠 수 없는 사람·세션이 찾은 작업은 plan.md의 "타임라인에 아직 없는 작업"에 적고, 타임라인 편집 권한이 있는 사람이 옮긴다.
 - **Claude에게 맡기기**: "S11 해줘"처럼 작업 번호로 요청한다. Claude가 따르는 절차는 `CLAUDE.md`의 "작업 번호로 요청받았을 때"에 있다.
-- **plan.md의 "기술 스택 · 작업 가이드"**: AI가 plan.md만 보고도 작업할 수 있도록 버전·파일 역할·데이터 접근 패턴·명령어·규칙을 자세히 적은 절이다. 타임라인 마커 **밖**에 있어 동기화로 지워지지 않는다. 결정의 기준은 이 문서 1.1·2장·4~5장이며, 스택·계약이 바뀌면 이 문서를 먼저 고치고 같은 커밋에서 그 절도 맞춘다.
+- **한 내용은 한 곳에만**: 결정·규칙·계약·환경변수는 이 문서, 꼭 지킬 제약·작업 절차·명령어·검증은 `CLAUDE.md`, 코드를 어떻게 짜는지(버전·파일 역할·데이터 접근 패턴·인증·데모 모드·스타일)는 plan.md의 "기술 스택 · 작업 가이드"에 적는다. 다른 문서의 내용은 다시 쓰지 않고 절 이름으로 가리킨다.
+- **plan.md의 "기술 스택 · 작업 가이드"**: 타임라인 마커 **밖**에 있어 동기화로 지워지지 않는다. 스택·계약이 바뀌어 그 절의 코드 설명이 틀리게 되면 이 문서를 먼저 고치고 같은 커밋에서 그 절도 맞춘다.
 - **완료 표시**: 완료 기준을 만족하면 타임라인에서 완료 체크(기준)하고, plan.md는 다음 동기화 때 맞춰진다. Claude가 작업을 끝낸 경우 같은 커밋에서 plan.md도 `[x]`로 바꾼다.

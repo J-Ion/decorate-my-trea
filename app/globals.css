@@ -61,6 +61,11 @@ body {
 @keyframes float-heart { from { transform: translateY(0) scale(.6); opacity: 1; } to { transform: translateY(-80vh) scale(1.4); opacity: 0; } }
 .float-heart { animation: float-heart 3s ease-out forwards; }
 
+/* 트리 넘김: 트리는 그대로 두고 장식 묶음만 넘긴 방향에서 들어온다 (--page-dir: 1 다음, -1 이전) */
+@keyframes page-in-k { from { opacity: 0; transform: translateX(calc(var(--page-dir, 1) * 18px)); } to { opacity: 1; transform: none; } }
+.page-anim .orn-page { animation: page-in-k .22s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .page-anim .orn-page { animation: none; } }
+
 /* 전구 */
 @keyframes bulb-twinkle { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
 .bulb-on { animation: bulb-twinkle 2.4s ease-in-out infinite; }

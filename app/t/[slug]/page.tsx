@@ -35,7 +35,9 @@ export default async function TreePage({ params, searchParams }: Params) {
   const forced = parseForcedDday(dday, demoMode || process.env.NODE_ENV !== "production");
   const season = getSeason(Date.now(), revealAt, forced);
   // 서버에서도 한 번 더: 주인 + 공개 이후에만 본문 요청 (DB RLS 가 최종 방어선)
-  const letters = isOwner && revealed ? await getLetters(tree.id) : null;
+  // 데모 주인 미리보기에서는 ?dday=0 으로 공개 후를 흉내 낼 때도 (가짜) 데모 편지를 넘긴다.
+  // ownerPreview 는 demoMode 에서만 true 이므로 실서버의 열람 판단은 그대로다.
+  const letters = isOwner && (revealed || (ownerPreview && season.revealed)) ? await getLetters(tree.id) : null;
 
   return (
     <TreeView

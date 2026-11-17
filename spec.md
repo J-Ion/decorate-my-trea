@@ -1,6 +1,6 @@
 # 포스텍 트리 — 제품 스펙
 
-> 마지막 갱신: 2026-11-16 (장식 페이지 넘김(C3): 5.1 · 12/25 0시 동시 접속 대비: 4.5, 6장 · 서버 담당: 2장 · 문서 간 중복 제거·환경변수 표 통합: 1.1, 7장 · QA용 데모 배포·공유 주소 기본값: 1.1 · plan.md 기술 스택 작업 가이드 규칙: 7장 · 작업 관리 규칙 추가: 7장 · 프론트엔드·서버 역할 분리: 2장 · 기술 스택 확정: 1.1, 3~6장) · 작업을 시작하기 전에 이 문서를 먼저 고치고, 구현 단계는 [`plan.md`](./plan.md)에 체크리스트로 남깁니다.
+> 마지막 갱신: 2026-11-17 (애니메이션 성능 규칙·동작 줄이기(C2): 4.2, 2.1 · 장식 페이지 넘김(C3): 5.1 · 12/25 0시 동시 접속 대비: 4.5, 6장 · 서버 담당: 2장 · 문서 간 중복 제거·환경변수 표 통합: 1.1, 7장 · QA용 데모 배포·공유 주소 기본값: 1.1 · plan.md 기술 스택 작업 가이드 규칙: 7장 · 작업 관리 규칙 추가: 7장 · 프론트엔드·서버 역할 분리: 2장 · 기술 스택 확정: 1.1, 3~6장) · 작업을 시작하기 전에 이 문서를 먼저 고치고, 구현 단계는 [`plan.md`](./plan.md)에 체크리스트로 남깁니다.
 
 ## 1. 개요
 - **목표**: POSTECH 학생들이 인스타그램에 자기 트리 링크를 올리고, 친구들이 **익명 편지**를 장식으로 달아주는 연말 이벤트. 편지는 **12/25 00:00 KST**에 열린다.
@@ -76,7 +76,7 @@
 
 | 영역 | 소유 | 파일 |
 | --- | --- | --- |
-| 트리 화면 / 인터랙션 | 클라이언트 | `components/TreeScene.tsx`, `TreeView.tsx`, `WriteForm.tsx`, `LetterModal.tsx`, `Snow.tsx`, `Countdown.tsx`, `ShareButtons.tsx`, `lib/season.ts`, `app/globals.css` (애니메이션 부분) |
+| 트리 화면 / 인터랙션 | 클라이언트 | `components/TreeScene.tsx`, `TreeView.tsx`, `WriteForm.tsx`, `LetterModal.tsx`, `Snow.tsx`, `Countdown.tsx`, `ShareButtons.tsx`, `lib/season.ts`, `app/globals.css` (애니메이션 부분), `scripts/perf-measure.mjs`, `docs/qa-c2-device.md` |
 | 카카오톡 공유 (선택) | 클라이언트 | `lib/kakao.ts` |
 | 페이지 / 폼 | 프론트엔드 | `app/**/page.tsx`, `app/layout.tsx`, `app/not-found.tsx`, `app/opengraph-image.png`, `components/TreeForm.tsx`, `LoginButtons.tsx`, `ClaimForm.tsx`, `AdminCreateForm.tsx`, `package.json` (프론트엔드 의존성) |
 | 데이터 / 서버 | 서버 | `app/actions.ts`, `app/api/**`, `app/auth/**`, `middleware.ts`, `lib/data.ts`, `lib/supabase/**`, `lib/moderation.ts`, `supabase/migrations/**`, `scripts/test-rls.sql`, Vercel·Supabase 설정 |
@@ -125,6 +125,13 @@
 | 12/25 ~ | 전구 전부 + 무지개 순환, 눈 수북, 선물 3개 |
 
 - 개발/데모 모드에서 `?dday=N`으로 미리보기 (프로덕션에선 무시, 편지 권한과 무관)
+
+**애니메이션 성능 규칙 (C2)** — 저사양 폰 기준. 측정값과 실기기 체크리스트는 [`docs/qa-c2-device.md`](./docs/qa-c2-device.md).
+- 계속 도는 애니메이션은 `transform`·`opacity`만 움직인다. `filter`·색(`color`, `fill`)·그림자를 무한 애니메이션하지 않는다 (매 프레임 메인 스레드에서 다시 그린다). 색이 바뀌어야 하면 색이 다른 복사본을 겹쳐 `opacity`로 바꾼다 (무지개 전구, 빛나는 별).
+- 전구는 SVG 필터 없이 HTML + `box-shadow`로 그린다.
+- 내리는 눈은 초당 30번 그리고, 탭이 가려지면 멈춘다. 캔버스는 CSS 픽셀 크기(1배)로 둔다.
+- `prefers-reduced-motion`이면 계속 도는 연출(눈·장식 흔들림·전구 깜빡임·무지개·별)을 멈춘 채로 보여 준다. 탭해서 나오는 반응(별·포닉스·토스트)은 그대로 둔다.
+- 연출을 바꿨으면 `node scripts/perf-measure.mjs`(데모 모드 `npm start` 상태)로 전/후를 비교한다. 헤드리스 수치는 비교용이며 실기기 확인을 대신하지 않는다.
 
 ### 4.3 이스터에그
 - **꼭대기 별**: 탭마다 반짝, 7연타 → 전구 전부 켜지며 체이스 + 산타 썰매

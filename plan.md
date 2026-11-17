@@ -1,6 +1,6 @@
 # 포스텍 트리 — 구현 계획
 
-> 마지막 갱신: 2026-11-16 (작업 가이드 중복 제거: 제약·명령어는 CLAUDE.md, 환경변수는 spec.md 1.1로)
+> 마지막 갱신: 2026-11-17 (C2 자동 성능 측정·개선, 실기기 체크리스트: docs/qa-c2-device.md · 작업 가이드 중복 제거: 제약·명령어는 CLAUDE.md, 환경변수는 spec.md 1.1로)
 > 📅 **기준은 [타임라인 (간트 차트)](https://claude.ai/artifact/XZPtaxuvxWC3hkFvo1VyNi)** 입니다. 사람은 타임라인을 보고 일하고, 작업 추가·일정·완료 체크도 타임라인에서 합니다.
 > 이 문서의 작업 목록은 타임라인의 사본이라 **손으로 고치지 않습니다.** 타임라인을 바꾼 뒤 `node scripts/sync-plan.mjs <타임라인 HTML>`로 다시 만듭니다. 둘이 다르면 타임라인이 맞습니다.
 > 표기: 🎨 디자인(D) · 🖥 프론트엔드(F) · 🛠 서버(S) · 📱 클라이언트(C) · 👥 공통(T) · 스펙은 [`spec.md`](./spec.md)
@@ -495,3 +495,8 @@
     - 저사양 폰에서 넘길 때 끊김이 없는지, "동작 줄이기"(iOS)·"애니메이션 삭제"(Android)를 켜면 장식이 바로 바뀌는지
     - VoiceOver·TalkBack에서 "이전 트리"/"다음 트리" 버튼과 "트리 4개 중 2번째 트리" 안내가 읽히는지
   - 산출물: 문제가 있으면 이슈로 등록 (client 라벨, 제목에 "C3 트리 넘김"). 고칠 파일은 `components/TreeView.tsx`(스와이프 기준 `SWIPE_MIN`, 버튼), `components/TreeScene.tsx`(`.orn-page`), `app/globals.css`(`page-in-k`)
+
+- [ ] **C2 실기기 확인 (사람 몫 남음)** — 📱 클라이언트. C2의 자동 측정·개선은 끝났고 실기기 확인이 남았습니다. 체크리스트·결과 기록 양식·이슈 올리는 법은 [`docs/qa-c2-device.md`](./docs/qa-c2-device.md), 규칙은 `spec.md` 4.2 "애니메이션 성능 규칙".
+  - 한 일 (헤드리스 Chromium, 375px, CPU 4~6배 스로틀): 눈 30fps·탭 가려지면 정지, 전구를 SVG blur 필터에서 HTML `box-shadow`로, 무지개·별 빛을 opacity 전환으로, 동작 줄이기 대응. 메인 스레드 일 약 25~45% 감소(12/25 화면은 래스터 227→0ms/초). 표는 문서 1장.
+  - 남은 일: iOS Safari / Android Chrome / 저사양 폰에서 문서 2장 A~F 확인 → 문제는 `client` 라벨 이슈(라벨을 먼저 만들어야 함) → 다 끝나면 타임라인에서 C2 완료 체크. 위 "트리 넘김(C3) 실기기 QA" 중 실기기 항목은 문서 2장 B·F에 넣었습니다 (인앱 브라우저 항목은 C1).
+  - 고친 파일: `components/Snow.tsx`, `components/TreeScene.tsx`, `app/globals.css`, 새 파일 `scripts/perf-measure.mjs`, `docs/qa-c2-device.md`

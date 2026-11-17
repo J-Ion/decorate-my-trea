@@ -30,8 +30,7 @@ const SWIPE_MIN = 40;
 const noSubscribe = () => () => {};
 
 /** 데모 모드 전용: `?fill=60`이면 데모 장식을 복제해 60개로 채운다 (페이지 넘김 확인용, 실서버에서는 무시). */
-function useDemoFill(demo: boolean) {
-  const search = useSyncExternalStore(noSubscribe, () => window.location.search, () => "");
+function useDemoFill(demo: boolean, search: string) {
   if (!demo) return 0;
   const n = Number(new URLSearchParams(search).get("fill"));
   return Number.isInteger(n) && n > 0 ? Math.min(n, 500) : 0;
@@ -39,7 +38,17 @@ function useDemoFill(demo: boolean) {
 
 export default function TreeView(p: Props) {
   const router = useRouter();
-  const fill = useDemoFill(p.demo);
+  const search = useSyncExternalStore(noSubscribe, () => window.location.search, () => "");
+  const fill = useDemoFill(p.demo, search);
+  // 데모 모드 전용: 주인 화면 ↔ 방문자 화면 전환 링크 (?dday·?fill 등 나머지 쿼리는 유지).
+  // 데모에는 로그인이 없으므로 demo && isOwner 는 `?owner=1` 미리보기뿐이다 (실서버에서는 서버가 무시).
+  const ownerToggleHref = useMemo(() => {
+    const q = new URLSearchParams(search);
+    if (p.isOwner) q.delete("owner");
+    else q.set("owner", "1");
+    const qs = q.toString();
+    return `/t/${p.tree.slug}${qs ? `?${qs}` : ""}`;
+  }, [search, p.isOwner, p.tree.slug]);
   const base = useMemo(() => {
     if (!fill || p.ornaments.length === 0) return p.ornaments;
     return Array.from({ length: fill }, (_, i) => {
@@ -133,7 +142,15 @@ export default function TreeView(p: Props) {
         </nav>
 
         {p.demo && (
-          <p className="mb-2 rounded-full bg-yellow-300 px-3 py-1 text-xs text-black">데모 모드 — Supabase 연결 전 미리보기</p>
+          <>
+            <p className="mb-2 rounded-full bg-yellow-300 px-3 py-1 text-xs text-black">데모 모드 — Supabase 연결 전 미리보기</p>
+            <p className="mb-2 flex items-center gap-2 text-xs">
+              {p.isOwner && <span className="rounded-full bg-pink-300 px-3 py-1 text-black">데모: 주인 화면 미리보기</span>}
+              <Link href={ownerToggleHref} className="rounded-full bg-white/15 px-3 py-1 underline">
+                {p.isOwner ? "방문자 화면으로 보기" : "주인 화면으로 보기"}
+              </Link>
+            </p>
+          </>
         )}
 
         <div ref={captureRef} className="flex w-full flex-col items-center rounded-3xl px-2 pb-2 pt-3" style={themeBackground(p.tree.theme)}>

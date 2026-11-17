@@ -63,6 +63,16 @@ const DEMO_ORNAMENTS: OrnamentRow[] = DEMO_TYPES.map((t, i) => ({
   id: `demo-${i}`, ornament_type: t, nickname: ["룸메", "실험실 동기", "익명의 산타", "과대", "새터 조원"][i % 5],
   created_at: new Date().toISOString(),
 }));
+// 데모 편지 본문 (전부 가짜 문구). 주인 화면 미리보기(`?owner=1&dday=0`)에서 편지 모달 확인용.
+const DEMO_CONTENTS = [
+  "한 학기 동안 같이 살아줘서 고마워. 내년에도 야식 메이트 하자! 메리 크리스마스 🎄",
+  "새벽 실험 같이 버텨줘서 고마워요. 덕분에 한 학기를 무사히 마쳤어요.",
+  "사실 오래전부터 좋아했어. 크리스마스에 78계단 앞에서 기다릴게.",
+  "올해도 고생 많았어! 종강하면 꼭 효자시장에서 밥 한번 먹자 🍚",
+];
+function demoOrnaments(treeId: string): OrnamentRow[] {
+  return treeId === "demo" ? DEMO_ORNAMENTS : DEMO_ORNAMENTS.slice(0, 5).map((o) => ({ ...o, ornament_type: "thanks" }));
+}
 
 export const demoMode = !isConfigured;
 
@@ -107,7 +117,7 @@ export async function getOwnedSpecialTrees(userId: string): Promise<Tree[]> {
 }
 
 export async function getOrnaments(treeId: string): Promise<OrnamentRow[]> {
-  if (!isConfigured) return treeId === "demo" ? DEMO_ORNAMENTS : DEMO_ORNAMENTS.slice(0, 5).map((o) => ({ ...o, ornament_type: "thanks" }));
+  if (!isConfigured) return demoOrnaments(treeId);
   const supabase = await createClient();
   const { data } = await supabase.rpc("get_ornaments", { p_tree_id: treeId });
   return (data ?? []) as OrnamentRow[];
@@ -149,7 +159,13 @@ export async function getRevealAt(): Promise<Date> {
 
 /** 편지 본문 — RLS 가 "주인 + 공개 이후" 만 허용하므로 그 외에는 빈 배열 */
 export async function getLetters(treeId: string) {
-  if (!isConfigured) return [];
+  // 데모 모드: 가짜 본문을 돌려준다 (DB 가 없으므로 RLS 와 무관, 실서버에서는 이 줄을 타지 않는다).
+  // 세 번째 편지만 고백 편지 — "💘 고백 편지" 라벨 확인용.
+  if (!isConfigured) {
+    return demoOrnaments(treeId).map((o, i) => ({
+      ...o, content: DEMO_CONTENTS[i % DEMO_CONTENTS.length], is_confession: treeId === "demo" && i === 2,
+    }));
+  }
   const supabase = await createClient();
   const { data } = await supabase
     .from("letters")

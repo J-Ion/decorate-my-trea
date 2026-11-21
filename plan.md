@@ -1,8 +1,8 @@
 # 포스텍 트리 — 구현 계획
 
-> 마지막 갱신: 2026-11-21 (와이어프레임 반영: 확정된 변경·타임라인에 아직 없는 작업) · 2026-11-20 (C2 실기기 확인 결과, 저사양 폰 확인은 베타로: docs/qa-c2-device.md) · 2026-11-17 (C2 자동 성능 측정·개선, 실기기 체크리스트: docs/qa-c2-device.md · 타임라인에 없는 작업 추가: 데모 주인 화면 미리보기 · 작업 가이드 중복 제거: 제약·명령어는 CLAUDE.md, 환경변수는 spec.md 1.1로)
+> 마지막 갱신: 2026-11-21 (F3 완료: next/font 자체 호스팅·framer-motion 제거 · 타임라인 링크를 실제 주소로 교체·동기화, 번호가 붙은 와이어프레임 작업을 미등록 목록에서 정리 · 와이어프레임 반영: 확정된 변경·타임라인에 아직 없는 작업) · 2026-11-20 (C2 실기기 확인 결과, 저사양 폰 확인은 베타로: docs/qa-c2-device.md) · 2026-11-17 (C2 자동 성능 측정·개선, 실기기 체크리스트: docs/qa-c2-device.md · 타임라인에 없는 작업 추가: 데모 주인 화면 미리보기 · 작업 가이드 중복 제거: 제약·명령어는 CLAUDE.md, 환경변수는 spec.md 1.1로)
 > 🖼 화면 와이어프레임: [포스텍 트리 와이어프레임 (프론트엔드 화면)](https://claude.ai/artifact/48YKQPtn78agRoLiFXwSE5) — 화면별 데이터·액션은 spec.md 2.3
-> 📅 **기준은 [타임라인 (간트 차트)](https://claude.ai/artifact/XZPtaxuvxWC3hkFvo1VyNi)** 입니다. 사람은 타임라인을 보고 일하고, 작업 추가·일정·완료 체크도 타임라인에서 합니다.
+> 📅 **기준은 [타임라인 (간트 차트)](https://claude.ai/artifact/LVz71ybViGJ7xw6Ga1mD1Y)** 입니다. 사람은 타임라인을 보고 일하고, 작업 추가·일정·완료 체크도 타임라인에서 합니다.
 > 이 문서의 작업 목록은 타임라인의 사본이라 **손으로 고치지 않습니다.** 타임라인을 바꾼 뒤 `node scripts/sync-plan.mjs <타임라인 HTML>`로 다시 만듭니다. 둘이 다르면 타임라인이 맞습니다.
 > 표기: 🎨 디자인(D) · 🖥 프론트엔드(F) · 🛠 서버(S) · 📱 클라이언트(C) · 👥 공통(T) · 스펙은 [`spec.md`](./spec.md)
 
@@ -52,7 +52,6 @@
 | 연출 | `canvas-confetti` ^1.9 | | `WriteForm.tsx`에서 사용 |
 | 이미지 | `html-to-image` ^1.11 | | `ShareButtons.tsx`에서 동적 `import()` |
 | 가드 | `server-only` | | 서버 전용 모듈 첫 줄에 `import "server-only"` |
-| 제거 예정 | `framer-motion` | ^14.9 | 설치만 되어 있고 미사용 → **F3**에서 제거. 새로 쓰지 말 것 |
 | 린트 | `eslint` ^9 + `eslint-config-next` | | flat config(`eslint.config.mjs`), `next/core-web-vitals` + `next/typescript`, `scripts/**` 제외 |
 
 로컬에 `node_modules`가 없으면 `npm install`부터 합니다. 새 의존성은 spec.md 1.1에 있는 것만 추가합니다.
@@ -60,7 +59,7 @@
 ### 디렉터리와 파일 역할 (소유는 spec.md 2.1)
 | 경로 | 역할 | 실행 위치 |
 | --- | --- | --- |
-| `app/layout.tsx` | 루트 레이아웃, `metadata`·`viewport`, 폰트 (`<link>` → **F3**에서 `next/font/google`) | 서버 |
+| `app/layout.tsx` | 루트 레이아웃, `metadata`·`viewport`, 폰트 (`next/font/google` Jua·Gowun Dodum → `--font-jua`·`--font-gowun-dodum`) | 서버 |
 | `app/page.tsx` | 홈: 카운트다운·통계(`getStats`)·특별 트리 목록 | 서버 |
 | `app/login/page.tsx` · `app/create` · `app/me` · `app/admin` | 로그인 / 트리 생성·이름 변경 / 내 페이지 / 관리자 | 서버 (+ 폼 컴포넌트는 클라이언트) |
 | `app/t/[slug]/page.tsx` | 트리 보기. 주인이고 공개 이후면 `getLetters`(UI 분기일 뿐, 권한은 RLS), 아니면 장식만. `?dday=N`(개발·데모만), `?added`, `?egg` | 서버 → `TreeView` |
@@ -102,16 +101,15 @@
 | --- | --- | --- | --- |
 | 편지 저장 | API가 `count` 쿼리 2번 후 INSERT (동시 요청에 취약), IP만 기준 | `0002_submit_letter.sql`: `letters.client_hash` + `submit_letter(...)` 한 트랜잭션. API는 검증 → `anon_id` 쿠키(없으면 발급, httpOnly) → IP·브라우저 ID를 `IP_HASH_SALT`로 sha256 → RPC 1회 → 제한 오류를 `429`로 변환 | **S11**, **S12** |
 | 작성 제한 | IP 기준 분당 5 · 트리당 하루 10 | 브라우저 분당 5 · 트리당 하루 10, IP 분당 30 (베타에서 조정) | **S11**, **S12** |
-| 폰트 | Google Fonts `<link>` | `next/font/google` (Jua, Gowun Dodum) → CSS 변수로 `@theme`에 연결 | **F3** |
 | 스토리 이미지 저장 | `html-to-image` → `<a download>` | 캡처는 그대로, `navigator.share({ files })` → 안 되면 이미지를 띄워 "길게 눌러 저장" | **C7** |
 | OG | `metadata.openGraph` 텍스트만 | 정적 `app/opengraph-image.png` 1장 | **F2** |
 | 장식 아이콘 | 이모지 (`Ornament.emoji`) | `public/ornaments/<id>.svg`, id는 그대로 | **C4** |
 | CI | 없음 | GitHub Actions: lint · typecheck · build + Postgres 서비스 컨테이너에서 `test-rls.sql` | **S13** |
 | 관측 | 없음 | Vercel Analytics, (선택) Sentry | **S15** |
 | 카카오톡 공유 | 링크 복사·Web Share | (선택) Kakao JS SDK, `lib/kakao.ts` | **C11** |
-| 교수님 트리 | 관리자 생성 → 초대 코드 → 교수님이 `/me`에서 입력. 홈에 교수님 트리 목록 | 허락 대기로 생성 → 학생이 `/professors`에서 하트 → 관리자가 "트리 열기". 초대 코드 화면 제거(DB·함수는 유지). 홈은 `/professors` 카드 하나. `0003`: `trees.is_open`, `professor_likes`, `list_professors`·`toggle_professor_like`·`admin_set_tree_open`, 닫힌 트리는 `submit_letter()`·`getTreeBySlug()`에서 없는 트리 취급 (spec.md 4.6, 5.3) | 미등록 |
-| 내 트리 꾸미기 | 없음 (`theme`은 생성 시 `classic` 고정) | `/me/style`: `trees.tree_color` + `theme` 선택, `saveTreeStyle`, `TreeScene`에 `treeColor` prop (spec.md 4.7) | 미등록 |
-| 화면 구성 | 프로토타입 화면 | 와이어프레임대로: 홈 위쪽 3분기, 로그인 오류·인앱 안내, `/create` 이름 바꾸기 후 `/me`, `/me` 링크 복사·공유, `/admin` 탭 3개, 편지 쓰기 2단계, 공통 상태(404·권한 없음·`loading.tsx`·알림) (spec.md 3장, 5.1) | F4·F1 + 미등록 |
+| 교수님 트리 | 관리자 생성 → 초대 코드 → 교수님이 `/me`에서 입력. 홈에 교수님 트리 목록 | 허락 대기로 생성 → 학생이 `/professors`에서 하트 → 관리자가 "트리 열기". 초대 코드 화면 제거(DB·함수는 유지). 홈은 `/professors` 카드 하나. `0003`: `trees.is_open`, `professor_likes`, `list_professors`·`toggle_professor_like`·`admin_set_tree_open`, 닫힌 트리는 `submit_letter()`·`getTreeBySlug()`에서 없는 트리 취급 (spec.md 4.6, 5.3) | **S20**, **S21**, **F7**, **F6** |
+| 내 트리 꾸미기 | 없음 (`theme`은 생성 시 `classic` 고정) | `/me/style`: `trees.tree_color` + `theme` 선택, `saveTreeStyle`, `TreeScene`에 `treeColor` prop (spec.md 4.7) | **D11**, **S20**, **S21**, **F8**, **C13** |
+| 화면 구성 | 프로토타입 화면 | 와이어프레임대로: 홈 위쪽 3분기, 로그인 오류·인앱 안내, `/create` 이름 바꾸기 후 `/me`, `/me` 링크 복사·공유, `/admin` 탭 3개, 편지 쓰기 2단계, 공통 상태(404·권한 없음·`loading.tsx`·알림) (spec.md 3장, 5.1) | **F6**, **C13**, **F1** |
 
 `POST /api/letters`의 요청·응답 형식은 바뀌지 않습니다 (spec.md 5.2). spec.md 1.1의 "필요해지면 추가"·"쓰지 않기로 한 것"에 있는 기술은 쓰지 않습니다.
 
@@ -143,9 +141,9 @@
 ---
 
 <!-- timeline:start -->
-<!-- 타임라인에서 생성됨 (2026-11-20). 손으로 고치지 말고 타임라인을 고친 뒤 scripts/sync-plan.mjs를 실행하세요. -->
+<!-- 타임라인에서 생성됨 (2026-11-21). 손으로 고치지 말고 타임라인을 고친 뒤 scripts/sync-plan.mjs를 실행하세요. -->
 
-> 타임라인 동기화: 2026-11-20 · 작업 51개 중 5개 완료 · ⭐ 핵심 작업
+> 타임라인 동기화: 2026-11-21 · 작업 59개 중 9개 완료 · ⭐ 핵심 작업
 
 ## 🎨 디자인 · (담당 미정)
 > 아이덴티티, 일러스트, 아이콘, 공유 이미지
@@ -211,6 +209,14 @@
     - 칠판 배경
     - 분필 장식
   - 산출물: 테마 시안
+- [ ] **D11** 트리 색·배경 테마 값 확정 · 11/22(일)–11/23(월) · 선행: D2
+  - 와이어프레임 반영 (2026-11-21 추가, 일정은 제안). D2와 함께 정한다. spec.md 6장.
+  - 할 일
+    - 트리 색 후보
+    - 배경 테마 후보
+    - 토큰 이름·값
+  - 산출물: 트리 색·테마 값 표
+  - 완료 기준: 클라이언트·프론트엔드가 값을 확인함
 - [ ] **D9** OG 썸네일·스토리 캡처 영역 디자인 · 11/23(월)–11/25(수) · 선행: D3
   - 할 일
     - 링크 미리보기 1200×630 (모든 트리 공통 1장)
@@ -235,11 +241,22 @@
   - 산출물: spec.md 2.2 계약 목록
   - 완료 기준: M1 통과
 ### ~11/26 M2 반영·배포
-- [ ] **F3** next/font 교체·framer-motion 제거 · 11/20(금)
+- [x] **F3** next/font 교체·framer-motion 제거 · 11/20(금)
   - Jua, Gowun Dodum을 자체 호스팅.
   - 할 일
     - app/layout.tsx의 <link> 제거
     - framer-motion 의존성 제거
+- [ ] **F6** 와이어프레임대로 기존 화면 구조 정리 · 11/21(토)–11/23(월)
+  - 와이어프레임 반영 (2026-11-21 추가, 일정은 제안). 디자인(색·폰트)은 F1에서. 이 작업은 구조·문구·상태·데이터 연결만. spec.md 2.3·5.1.
+  - 할 일
+    - 홈
+    - 로그인
+    - /create
+    - /me
+    - /admin 탭
+    - 공통 상태 (로딩·오류·빈 화면)
+  - 산출물: 화면 구조 반영 코드
+  - 완료 기준: 데모 모드 375px에서 와이어프레임과 같은 구조
 - [ ] **F1** 페이지 디자인 반영 · 11/22(일)–11/26(목) · 선행: D7
   - 할 일
     - 홈
@@ -253,6 +270,21 @@
     - app/opengraph-image.png 추가
     - 카톡·인스타 링크 미리보기 확인
     - 페이지 메타데이터 정리 (app/layout.tsx, app/t/[slug]/page.tsx의 generateMetadata)
+### ~11/29 M3 베타
+- [ ] **F7** /professors 화면 · 11/25(수)–11/27(금) · 선행: S21
+  - 와이어프레임 반영 (2026-11-21 추가, 일정은 제안). spec.md 2.3·4.6.
+  - 할 일
+    - 교수님 목록
+    - 하트 누르기
+  - 산출물: app/professors
+  - 완료 기준: 데모 모드 375px에서 목록·하트 동작
+- [ ] **F8** /me/style 화면 · 11/25(수)–11/27(금) · 선행: S21, D11
+  - 와이어프레임 반영 (2026-11-21 추가, 일정은 제안). spec.md 2.3·4.7.
+  - 할 일
+    - 트리 색·테마 고르기
+    - 저장 후 내 트리에 반영
+  - 산출물: app/me/style
+  - 완료 기준: 데모 모드 375px에서 저장·반영 동작
 ### ~12/1 오픈
 - [ ] **F5** 베타 페이지·폼 버그·접근성 · 11/29(일)–11/30(월) · 선행: T3
   - 할 일
@@ -333,6 +365,14 @@
     - Vercel Analytics 켜기
     - (선택) Sentry 연동 (instrumentation.ts)
     - Supabase 사용량·일시정지 상태 확인 (무료 플랜은 약 1주일 미사용 시 일시정지)
+- [ ] **S20** 0003 마이그레이션: 교수님 허락·하트·트리 색 · 11/22(일)–11/24(화) · 선행: S11
+  - 와이어프레임 반영 (2026-11-21 추가, 일정은 제안). spec.md 4.6·4.7·5.3.
+  - 할 일
+    - trees.is_open·tree_color (select 권한·TREE_COLUMNS, 주인 update는 tree_color만), professor_likes
+    - list_professors(), toggle_professor_like(), admin_set_tree_open(), admin_list_special_trees 반환 확장, submit_letter()가 닫힌 트리 거부
+    - scripts/test-rls.sql: 비로그인 하트 실패, 1인 1하트, 누른 사람 비공개, 닫힌 트리 편지 실패, 일반 사용자가 is_open 못 바꿈
+  - 산출물: supabase/migrations/0003_*.sql, test-rls.sql 케이스
+  - 완료 기준: 빈 Postgres에서 RLS 테스트 통과
 - [ ] **S17** 0시 대비 조회 경량화 · 11/23(월)–11/25(수) · 선행: S12 ⭐
   - 트리 페이지 1회에 Supabase 호출이 약 7번, 홈은 get_stats()가 letters 전체를 4번 셈. spec.md 4.5.
   - 할 일
@@ -341,6 +381,15 @@
     - 미들웨어 getUser()가 매 요청 Auth 서버를 부르는 부담 확인, 줄일 방법 검토
     - letters 조회에 필요한 인덱스 확인 (tree_id, hidden)
   - 완료 기준: 트리 페이지 1회의 Supabase 호출 수가 줄어든 것을 로그로 확인, 데모·실서버 흐름 그대로 동작
+- [ ] **S21** 서버 액션·조회 함수 추가 · 11/24(화)–11/25(수) · 선행: S20
+  - 와이어프레임 반영 (2026-11-21 추가, 일정은 제안). 데모 분기(데모 교수님 목록) 함께 추가.
+  - 할 일
+    - getProfessors, toggleProfessorLike, adminSetTreeOpen, adminUpdateSpecialTree, saveTreeStyle, getReportedLetters
+    - getTreeBySlug의 닫힌 트리 처리
+    - saveMyTree 이름 바꾸기 후 /me?toast=renamed
+    - adminCreateSpecialTree를 허락 대기로 생성
+  - 산출물: app/actions.ts·lib/data.ts 변경
+  - 완료 기준: 데모·실서버 모두 동작, build·lint·typecheck 통과
 ### ~11/29 M3 베타
 - [ ] **S7** 관리자·교수님 트리 준비 · 11/24(화)–11/27(금) · 선행: S4
   - 할 일
@@ -410,6 +459,13 @@
     - findOrnament가 이미지 경로를 쓰도록 변경
     - 이모지 fallback 유지
   - 완료 기준: 40종 모두 표시
+- [ ] **C13** 편지 쓰기 2단계 화면·TreeScene treeColor prop · 11/22(일)–11/24(화)
+  - 와이어프레임 반영 (2026-11-21 추가, 일정은 제안). WriteForm·TreeScene. 색 값은 D11 전까지 임시. spec.md 3장.
+  - 할 일
+    - 1단계 장식 선택 → 2단계 편지 작성
+    - TreeScene에 treeColor prop
+  - 산출물: WriteForm·TreeScene 변경
+  - 완료 기준: 데모 모드 375px에서 2단계 흐름 동작
 - [ ] **C6** 포닉스 교체 · 11/23(월)–11/24(화) · 선행: D6
 - [ ] **C7** 스토리 이미지 저장 방식 개선 · 11/25(수)–11/26(목) · 선행: D9, C1
   - html-to-image 캡처는 유지하고, 인앱 브라우저에서 막히는 <a download> 대신 공유 시트로 넘김.
@@ -458,6 +514,11 @@
   - 산출물: spec.md 1.1, plan.md
 - [x] **T8** 서버 담당자 정하기 · 11/15(일)
   - 프론트엔드와 서버를 나눴으므로 서버 담당자 별명을 정해 spec.md 2장과 이 타임라인 담당자 칸에 적기.
+### ~11/26 M2 반영·배포
+- [ ] **T9** 교수님께 편지를 전하는 방법 결정 · 11/22(일)–11/24(화)
+  - 와이어프레임 반영 (2026-11-21 추가, 일정은 제안). spec.md 6장.
+  - 산출물: 결정 사항 (spec.md에 기록)
+  - 완료 기준: 팀이 방법에 합의
 ### ~11/29 M3 베타
 - [ ] **T2** 베타 테스터 모집 · 11/24(화)–11/28(토)
   - 할 일
@@ -509,19 +570,8 @@
   - 할 일: 베타 테스터 중 3년 이상 된 보급형 안드로이드나 아이폰 8·SE급을 가진 사람에게 `docs/qa-c2-device.md` 2장 A(끊김)·B 마지막 줄(넘길 때 끊김)·E(5분 켜 두고 발열)를 부탁하고, 결과를 같은 문서 "결과" 표에 적는다.
   - 문제가 있으면 `client` 라벨 이슈. 먼저 볼 곳: 눈 `components/Snow.tsx`(`FPS`), 전구·별 `components/TreeScene.tsx`·`app/globals.css`.
 
-와이어프레임 반영 (2026-11-21, spec.md 2.3·3장·4.6·4.7·5장)
-- [ ] 🛠 **0003 마이그레이션: 교수님 허락·하트·트리 색** · 선행: S11
-  - `trees.is_open`·`tree_color` (select 권한·`TREE_COLUMNS`, 주인 update 권한에 `tree_color` 추가 — 기존 `theme` 유지, `is_open`은 제외), 기존 교수님 트리 `is_open = false`로 닫기, 칠판 테마 check 제약(일반 트리 금지), `professor_likes`
-  - `list_professors()`, `toggle_professor_like()`, `admin_set_tree_open()`, `admin_list_special_trees` 반환 확장, `submit_letter()`가 닫힌 트리 거부
-  - `scripts/test-rls.sql`: 비로그인 하트 실패, 1인 1하트, 누른 사람 비공개, 닫힌 트리 편지 실패, 일반 사용자가 `is_open` 못 바꿈, 일반 트리 주인이 `theme = 'chalkboard'`로 직접 update 실패, 주인이 `theme`·`tree_color` 바꾸기 성공
-  - 완료 기준: 빈 Postgres에서 RLS 테스트 통과
-- [ ] 🛠 **서버 액션·조회 함수 추가** · 선행: 0003
-  - `getProfessors`, `toggleProfessorLike`, `adminSetTreeOpen`, `adminUpdateSpecialTree`, `saveTreeStyle`, `getReportedLetters`, `getTreeBySlug`의 닫힌 트리 처리, `saveMyTree` 이름 바꾸기 후 `/me?toast=renamed`, `adminCreateSpecialTree`를 허락 대기로 생성
-  - 데모 분기 함께 추가 (데모 교수님 목록)
-- [ ] 🖥 **와이어프레임대로 기존 화면 구조 정리** (홈·로그인·`/create`·`/me`·`/admin` 탭·공통 상태)
-  - 디자인(색·폰트)은 F1에서. 이 작업은 구조·문구·상태·데이터 연결만
-- [ ] 🖥 **`/professors` 화면** · 선행: 서버 액션·조회 함수 추가
-- [ ] 🖥 **`/me/style` 화면** · 선행: 서버 액션·조회 함수 추가, 트리 색·테마 값
-- [ ] 📱 **편지 쓰기 2단계 화면·`TreeScene` `treeColor` prop** (`WriteForm`·`TreeScene`, 클라이언트 담당)
-- [ ] 🎨 **트리 색·배경 테마 값 확정** (D2와 함께, spec.md 6장)
-- [ ] 👥 **교수님께 편지를 전하는 방법 결정** (spec.md 6장)
+- [ ] **타임라인 S20 설명 고치기 (PR #1 리뷰 반영분)** — 👥 타임라인 편집 권한이 있는 사람. 와이어프레임 작업은 번호(S20·S21·F6·F7·F8·C13·D11·T9)를 받아 위 목록으로 옮겼지만, 타임라인의 S20 할 일은 #1 리뷰 전 문구라 아래처럼 고쳐 주세요. 기준은 `spec.md` 4.7·5.3.
+  - "주인 update는 tree_color만" → "주인 update 권한에 `tree_color` 추가 — 기존 `theme` 유지, `is_open`은 제외" (그대로 구현하면 `/me/style` 테마 저장이 실패)
+  - 추가: 기존 교수님 트리 `is_open = false`로 닫기, 칠판 테마 check 제약 `trees_chalkboard_professor_only`(일반 트리 금지)
+  - `test-rls.sql`에 추가: 일반 트리 주인이 `theme = 'chalkboard'`로 직접 update 실패, 주인이 `theme`·`tree_color` 바꾸기 성공
+  - 고친 뒤 `sync-plan.mjs`로 다시 만들고 이 항목을 지운다

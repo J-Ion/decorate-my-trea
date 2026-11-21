@@ -9,9 +9,6 @@ import { TOTAL_BULBS, getSeason, parseForcedDday } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
 
-// F7에서 app/professors/page.tsx를 만들면 true로 바꾼다
-const PROFESSORS_PAGE_READY = false;
-
 const PREVIEW = ["ball-red", "jigok", "sock", "star", "coffee", "aplus", "gift", "stairs77", "snowman", "gwamegi"].map(
   (t, i) => ({ id: `p${i}`, ornament_type: t, nickname: ["룸메", "동기", "익명의 산타", "과대", "조원"][i % 5] }),
 );
@@ -29,7 +26,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
       <Snow density={Math.round(30 + 70 * season.progress)} />
       <header className="relative z-10 mx-auto flex h-14 max-w-md items-center justify-between px-4">
         <Link href="/" className="font-display text-lg">🎄 포스텍 트리</Link>
-        <Link href={user ? "/me" : "/login"} className="flex min-h-11 items-center px-2 text-sm">{user ? "내 페이지" : "로그인"}</Link>
+        <Link href={user ? "/me" : "/login"} className="flex min-h-11 items-center px-2 text-sm">{user ? "내 트리" : "로그인"}</Link>
       </header>
       <div className="relative z-10 mx-auto flex max-w-md flex-col items-center px-4 pb-12 pt-4 text-center">
         <p className="text-sm tracking-widest opacity-80">POSTECH CHRISTMAS 2026</p>
@@ -91,8 +88,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           ))}
         </section>
 
-        {/* 교수님께 마음 전하기 → /professors (spec.md 3장). 화면(F7)이 생기기 전에는 404라 숨긴다 */}
-        {PROFESSORS_PAGE_READY && (
+        {/* 교수님께 마음 전하기 → /professors (spec.md 3장) */}
         <Link href="/professors" className="mt-6 flex w-full items-center gap-3.5 rounded-2xl bg-[#2f4d3c] p-4 text-left shadow">
           <span className="text-3xl" aria-hidden>🖍️</span>
           <span className="min-w-0 flex-1">
@@ -101,7 +97,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           </span>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0"><path d="M9 6l6 6-6 6" /></svg>
         </Link>
-        )}
 
         <section className="mt-8 w-full rounded-3xl bg-white/10 p-5 text-left text-sm leading-6">
           <h2 className="font-display mb-2 text-lg">🎁 이렇게 즐겨요</h2>
@@ -114,7 +109,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           <p className="mt-3 text-xs opacity-70">psst... 트리 꼭대기 별을 마구 눌러보세요. 트리 옆 포닉스도 한번 눌러보고, 편지에 특별한 단어를 쓰면 무슨 일이 생길지도?</p>
         </section>
 
-        <footer className="mt-8 text-xs opacity-60">Made by POSTECH students · {user ? <Link href="/me" className="underline">내 페이지</Link> : <Link href="/login" className="underline">로그인</Link>}</footer>
+        <footer className="mt-8 text-xs opacity-60">Made by POSTECH students · {user ? <Link href="/me" className="underline">내 트리</Link> : <Link href="/login" className="underline">로그인</Link>}</footer>
       </div>
     </main>
   );

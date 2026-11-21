@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type TouchEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode, type TouchEvent } from "react";
 import { useRouter } from "next/navigation";
 import TreeScene, { SLOTS_PER_PAGE, themeBackground, type SceneOrnament, type SceneSeason } from "@/components/TreeScene";
 import LetterModal, { type Letter } from "@/components/LetterModal";
@@ -12,7 +12,7 @@ import { TOTAL_BULBS } from "@/lib/season";
 import { useRevealRefresh } from "@/components/useRevealRefresh";
 
 type Props = {
-  tree: { id: string; slug: string; title: string; owner_name: string; theme: string; kind: string; description: string | null };
+  tree: { id: string; slug: string; title: string; owner_name: string; theme: string; tree_color?: string | null; kind: string; description: string | null };
   ornaments: SceneOrnament[];
   letters: Letter[] | null;
   isOwner: boolean;
@@ -23,6 +23,8 @@ type Props = {
   justAdded: boolean;
   egg?: string;
   demo: boolean;
+  /** 주인 화면(= 내 트리) 아래 메뉴. 프론트엔드 OwnerMenu (spec.md 2.2, F10) */
+  ownerMenu?: ReactNode;
 };
 
 // 스와이프로 인정하는 최소 가로 이동(px). 세로 스크롤과 구분하려고 가로가 세로의 1.5배 이상일 때만 넘긴다.
@@ -41,11 +43,10 @@ export default function TreeView(p: Props) {
   const search = useSyncExternalStore(noSubscribe, () => window.location.search, () => "");
   const fill = useDemoFill(p.demo, search);
   // 데모 모드 전용: 주인 화면 ↔ 방문자 화면 전환 링크 (?dday·?fill 등 나머지 쿼리는 유지).
-  // 데모에는 로그인이 없으므로 demo && isOwner 는 `?owner=1` 미리보기뿐이다 (실서버에서는 서버가 무시).
+  // demo && isOwner 는 `?owner=1` 미리보기 또는 데모 로그인한 주인이다. 방문자 화면으로는 `?owner=0` (실서버에서는 서버가 무시).
   const ownerToggleHref = useMemo(() => {
     const q = new URLSearchParams(search);
-    if (p.isOwner) q.delete("owner");
-    else q.set("owner", "1");
+    q.set("owner", p.isOwner ? "0" : "1");
     const qs = q.toString();
     return `/t/${p.tree.slug}${qs ? `?${qs}` : ""}`;
   }, [search, p.isOwner, p.tree.slug]);
@@ -178,6 +179,7 @@ export default function TreeView(p: Props) {
           >
             <TreeScene
               theme={p.tree.theme}
+              treeColor={p.tree.tree_color}
               ornaments={ornaments.slice(page * SLOTS_PER_PAGE, (page + 1) * SLOTS_PER_PAGE)}
               onOrnamentClick={onOrnament}
               season={p.season}
@@ -223,7 +225,7 @@ export default function TreeView(p: Props) {
               )}
               {revealed && count > 0 && <p className="text-center text-sm">장식을 눌러 편지를 읽어보세요 💌</p>}
               <ShareButtons url={p.shareUrl} title={p.tree.title} captureRef={captureRef} />
-              <Link href="/me" className="btn btn-ghost w-full">내 페이지</Link>
+              {p.ownerMenu ?? <Link href="/me" className="btn btn-ghost w-full">내 트리</Link>}
             </>
           ) : (
             <>

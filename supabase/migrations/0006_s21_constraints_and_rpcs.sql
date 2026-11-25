@@ -64,10 +64,15 @@ begin
   if v_owner_name = '' or char_length(v_owner_name) > 20 then
     return jsonb_build_object('ok', false, 'error', 'invalid_owner_name');
   end if;
-  if char_length(v_theme) > 30 then
+  -- 테마·학과는 앱이 아는 id 만 (lib/constants.ts 의 THEMES · DEPARTMENTS 와 같게 유지).
+  -- 앱(readSpecialTreeForm)도 거르지만, 관리자가 RPC 를 직접 불러도 모르는 id 가 저장되지 않게 한다.
+  if v_theme not in ('classic', 'snow', 'pink', 'night', 'postech', 'chalkboard') then
     return jsonb_build_object('ok', false, 'error', 'invalid_theme');
   end if;
-  if v_department is not null and char_length(v_department) > 30 then
+  if v_department is not null and v_department not in (
+    'mueunjae', 'math', 'phys', 'chem', 'life', 'mse', 'me', 'ime', 'ee', 'cse',
+    'cheme', 'cite', 'semi', 'ai', 'grad', 'etc'
+  ) then
     return jsonb_build_object('ok', false, 'error', 'invalid_department');
   end if;
   if v_description is not null and char_length(v_description) > 200 then

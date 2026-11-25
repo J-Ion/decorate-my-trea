@@ -14,7 +14,7 @@ export default function AdminCreateForm() {
       {state?.error && (
         <div role="alert" className="rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-700">{state.error}</div>
       )}
-      {state && !state.error && <p role="status" className="rounded-xl bg-green-50 px-3 py-2.5 text-sm text-green-800">교수님 트리를 만들었어요</p>}
+      {/* 성공하면 adminCreateSpecialTree 가 /admin?tab=list&toast=created 로 이동하므로 여기서는 오류만 보여 준다 */}
 
       <label htmlFor="t-title" className={label}>트리 이름</label>
       <input id="t-title" name="title" required maxLength={30} placeholder="OO 교수님께 드리는 트리" className={input} />

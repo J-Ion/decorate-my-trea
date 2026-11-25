@@ -390,6 +390,10 @@ begin
   if v ->> 'error' <> 'slug_taken' then raise exception 'expected slug_taken, got %', v; end if;
   v := public.admin_create_special_tree('제목', '이름', null, 'user');
   if v ->> 'error' <> 'invalid_kind' then raise exception 'expected invalid_kind, got %', v; end if;
+  v := public.admin_create_special_tree('제목', '이름', 'prof-x3', 'professor', 'nope');
+  if v ->> 'error' <> 'invalid_theme' then raise exception 'expected invalid_theme, got %', v; end if;
+  v := public.admin_create_special_tree('제목', '이름', 'prof-x4', 'professor', 'chalkboard', 'nope');
+  if v ->> 'error' <> 'invalid_department' then raise exception 'expected invalid_department, got %', v; end if;
   if (select count(*) from public.trees where slug like 'prof-x%') <> 0 then raise exception 'SHOULD NOT CREATE on invalid input'; end if;
   raise notice 'ok: 잘못된 입력은 error 코드로 (예외 문장 노출 없음)';
 end $$;

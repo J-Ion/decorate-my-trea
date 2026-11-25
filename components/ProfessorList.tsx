@@ -87,7 +87,7 @@ export default function ProfessorList({ professors, isLoggedIn }: { professors: 
                 <Link href="/login?next=/professors" className="btn btn-primary w-full !py-2 text-sm">로그인하고 하트 보내기</Link>
               </div>
             )}
-            {p.is_open && (
+            {p.is_open && p.slug && (
               <Link href={`/t/${p.slug}/write`} className="flex min-h-11 items-center justify-center rounded-xl border border-slate-300 text-sm font-bold">
                 트리 꾸미러 가기
               </Link>

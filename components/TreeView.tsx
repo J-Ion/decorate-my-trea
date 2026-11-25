@@ -12,7 +12,7 @@ import { TOTAL_BULBS } from "@/lib/season";
 import { useRevealRefresh } from "@/components/useRevealRefresh";
 
 type Props = {
-  tree: { id: string; slug: string; title: string; owner_name: string; theme: string; tree_color?: string | null; kind: string; description: string | null };
+  tree: { id: string; slug: string; title: string; owner_name: string; theme: string; tree_color?: string | null; kind: string; description: string | null; is_open?: boolean };
   ornaments: SceneOrnament[];
   letters: Letter[] | null;
   isOwner: boolean;
@@ -82,6 +82,9 @@ export default function TreeView(p: Props) {
   );
   const letterMap = useMemo(() => new Map((p.letters ?? []).map((l) => [l.id, l])), [p.letters]);
   const isSpecial = p.tree.kind !== "user";
+  // 허락 대기 트리(is_open = false)에는 편지를 쓸 수 없다 (spec.md 4.6). 주인·관리자가 미리 보는 화면에서도
+  // "편지 쓰기" 버튼을 숨긴다 — 버튼이 보여 쓴 편지는 submit_letter 가 거부해 사라진다.
+  const canWrite = p.tree.is_open !== false;
   const revealed = p.season.revealed;
   // 편지를 읽을 수 있는 화면: 주인 또는 교수님 열람 링크 (권한은 서버·DB가 이미 판단해 letters 로 넘겼다)
   const reader = !p.isOwner && !!p.reader;
@@ -247,9 +250,13 @@ export default function TreeView(p: Props) {
             </>
           ) : (
             <>
-              <Link href={`/t/${p.tree.slug}/write`} className="btn btn-primary w-full text-lg">
-                🎁 {p.tree.owner_name}님 트리 꾸며주기
-              </Link>
+              {canWrite ? (
+                <Link href={`/t/${p.tree.slug}/write`} className="btn btn-primary w-full text-lg">
+                  🎁 {p.tree.owner_name}님 트리 꾸며주기
+                </Link>
+              ) : (
+                <p className="text-center text-sm opacity-90">🕰 아직 허락을 기다리는 트리예요. 트리가 열리면 편지를 남길 수 있어요.</p>
+              )}
               {!isSpecial && (
                 <Link href={p.isLoggedIn ? "/me" : "/login"} className="btn btn-light w-full">
                   🎄 {p.isLoggedIn ? "내 트리 보러가기" : "나도 트리 만들기"}

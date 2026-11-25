@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { DEPARTMENTS, isTreeColor, THEMES, USER_THEME_IDS, type ThemeId } from "@/lib/constants";
 import {
-  DEFAULT_DEMO_SESSION, DEMO_SESSION_COOKIE, demoMode, demoProfessorBaseCount, readDemoSession, type DemoSession,
+  DEFAULT_DEMO_SESSION, DEMO_SESSION_COOKIE, demoMode, demoProfessorBaseCount, loginPath, readDemoSession, type DemoSession,
 } from "@/lib/data";
 
 function randomSlug(len = 8) {
@@ -100,6 +100,20 @@ export async function claimTree(_: FormState, fd: FormData): Promise<FormState> 
 }
 
 // ---------- 관리자 ----------
+// admin_create_special_tree(0006)가 돌려주는 오류 코드 → 사용자 문구 (spec.md 2.3: DB 문장을 그대로 보이지 않는다)
+const CREATE_ERRORS: Record<string, string> = {
+  not_allowed: "관리자만 만들 수 있어요.",
+  invalid_kind: "만들 수 없는 트리 종류예요.",
+  invalid_title: "트리 이름을 입력해주세요.",
+  invalid_owner_name: "주인 이름을 입력해주세요.",
+  invalid_theme: "테마를 다시 골라 주세요.",
+  invalid_department: "학과를 다시 골라 주세요.",
+  invalid_description: "설명은 200자까지 쓸 수 있어요.",
+  invalid_slug: "주소를 다시 만들어 주세요.",
+  slug_taken: "이미 쓰는 주소예요. 주소를 바꿔 주세요.",
+};
+const CREATE_FAILED = "트리를 만들지 못했어요. 잠시 후 다시 시도해 주세요.";
+
 export async function adminCreateSpecialTree(_: FormState, fd: FormData): Promise<FormState> {
   if (demoMode) return { error: "데모라 저장되지 않아요. 실서버에서는 허락 대기 트리로 만들어져요." };
   const supabase = await createClient();
@@ -107,17 +121,28 @@ export async function adminCreateSpecialTree(_: FormState, fd: FormData): Promis
   if (!user) return { error: "로그인이 필요해요." };
   const v = readSpecialTreeForm(fd);
   const kind = fd.get("kind") === "special" ? "special" : "professor";
-  const slugRaw = String(fd.get("slug") ?? "").trim().toLowerCase();
-  const slug = /^[a-z0-9-]{4,40}$/.test(slugRaw) ? slugRaw : `prof-${randomSlug(6)}`;
   if (!v.title || !v.owner_name) return { error: "제목과 이름을 입력해주세요." };
-  const { error } = await supabase.from("trees").insert({
-    owner_id: user.id, slug, kind, title: v.title, owner_name: v.owner_name,
-    theme: v.theme, description: v.description, department: v.department,
-  });
-  if (error) return { error: `생성 실패: ${error.message}` };
-  revalidatePath("/admin");
-  revalidatePath("/");
-  return {};
+  const slugRaw = String(fd.get("slug") ?? "").trim().toLowerCase();
+  const fixedSlug = /^[a-z0-9-]{4,40}$/.test(slugRaw) ? slugRaw : null;
+
+  // 0006 의 RPC 가 is_open = false(허락 대기)로 만들고, 만든 관리자를 트리 주인으로 둔다 (spec.md 3장·4.6).
+  // 주소가 겹칠 때만(자동으로 만든 주소) 다른 주소로 다시 시도한다.
+  for (let i = 0; i < 3; i++) {
+    const { data, error } = await supabase.rpc("admin_create_special_tree", {
+      p_title: v.title, p_owner_name: v.owner_name, p_slug: fixedSlug ?? `prof-${randomSlug(6)}`,
+      p_kind: kind, p_theme: v.theme, p_department: v.department, p_description: v.description,
+    });
+    if (error) return { error: CREATE_FAILED };
+    const r = (data ?? {}) as { ok?: boolean; error?: string };
+    if (r.ok) {
+      revalidatePath("/admin");
+      revalidatePath("/");
+      revalidatePath("/professors");
+      redirect("/admin?tab=list&toast=created"); // 목록 탭에서 허락 대기로 보인다 (spec.md 2.3)
+    }
+    if (r.error !== "slug_taken" || fixedSlug) return { error: CREATE_ERRORS[r.error ?? ""] ?? CREATE_FAILED };
+  }
+  return { error: "잠시 후 다시 시도해주세요." };
 }
 
 export async function adminIssueClaimCode(fd: FormData) {
@@ -128,12 +153,18 @@ export async function adminIssueClaimCode(fd: FormData) {
 }
 
 export async function adminResolve(fd: FormData) {
-  if (demoMode) redirect("/admin?tab=reports&toast=demo");
+  const restore = fd.get("restore") === "1";
+  const back = (toast: string) => `/admin?tab=reports&toast=${toast}`;
+  if (demoMode) redirect(back("demo"));
   const supabase = await createClient();
-  await supabase.rpc("admin_resolve_report", {
-    p_letter_id: String(fd.get("letter_id")), p_restore: fd.get("restore") === "1",
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect(loginPath("/admin?tab=reports"));
+  // 결과를 화면에 알려 준다 (spec.md 5.1) — 실패를 조용히 넘기지 않는다
+  const { error } = await supabase.rpc("admin_resolve_report", {
+    p_letter_id: String(fd.get("letter_id")), p_restore: restore,
   });
   revalidatePath("/admin");
+  redirect(back(error ? "failed" : restore ? "restored" : "deleted"));
 }
 
 // ---------- 교수님 하트 (spec.md 4.6) ----------
@@ -181,15 +212,24 @@ export async function saveTreeStyle(_: FormState, fd: FormData): Promise<FormSta
 }
 
 // ---------- 관리자: 허락 받은 교수님 트리 열기·닫기 (spec.md 4.6) ----------
+const LIST_FILTERS = ["all", "wait", "open"];
+
 export async function adminSetTreeOpen(fd: FormData) {
-  if (demoMode) redirect("/admin?tab=list&toast=demo");
+  const open = fd.get("open") === "1";
+  // 보던 필터(허락 대기·트리 열림)로 돌아간다 (spec.md 2.3)
+  const filterRaw = String(fd.get("filter") ?? "");
+  const filter = LIST_FILTERS.includes(filterRaw) ? filterRaw : "";
+  const back = (toast: string) => `/admin?tab=list${filter ? `&filter=${filter}` : ""}&toast=${toast}`;
+  if (demoMode) redirect(back("demo"));
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect(loginPath("/admin?tab=list"));
   const { error } = await supabase.rpc("admin_set_tree_open", {
-    p_tree_id: String(fd.get("tree_id")), p_open: fd.get("open") === "1",
+    p_tree_id: String(fd.get("tree_id")), p_open: open,
   });
   revalidatePath("/admin");
   revalidatePath("/professors");
-  redirect(`/admin?tab=list&toast=${error ? "failed" : fd.get("open") === "1" ? "opened" : "closed"}`);
+  redirect(back(error ? "failed" : open ? "opened" : "closed"));
 }
 
 // ---------- 관리자: 교수님 비밀 열람 링크 (spec.md 4.6, T9) ----------

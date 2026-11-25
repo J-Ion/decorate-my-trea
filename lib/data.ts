@@ -122,7 +122,11 @@ function demoMyTree(s: DemoSession): Tree | null {
 }
 
 // 교수님 목록 (데모). prof-demo만 트리가 열려 있고 나머지는 허락 대기라 /t/<slug>는 "없는 트리"
-const DEMO_PROFESSORS: (Omit<ProfessorRow, "liked_by_me"> & { letter_count: number })[] = [
+type DemoProfessor = {
+  id: string; slug: string; owner_name: string; department: string;
+  is_open: boolean; like_count: number; letter_count: number;
+};
+const DEMO_PROFESSORS: DemoProfessor[] = [
   { id: "demo-prof", slug: "prof-demo", owner_name: "OO 교수님", department: "cse", is_open: true, like_count: 128, letter_count: 5 },
   { id: "demo-prof-2", slug: "prof-demo-2", owner_name: "이OO 교수님", department: "phys", is_open: false, like_count: 97, letter_count: 0 },
   { id: "demo-prof-3", slug: "prof-demo-3", owner_name: "박OO 교수님", department: "chem", is_open: false, like_count: 64, letter_count: 0 },
@@ -149,7 +153,8 @@ export async function getProfile() {
   const user = await getUser();
   if (!user) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("profiles").select("id, display_name, is_admin").eq("id", user.id).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("id, display_name, is_admin").eq("id", user.id).maybeSingle();
+  if (error) throw error; // 조용히 null 로 삼키면 관리자·주인 판정이 뒤집힌다
   return data as { id: string; display_name: string | null; is_admin: boolean } | null;
 }
 
@@ -159,8 +164,20 @@ export const getTreeBySlug = cache(async (slug: string): Promise<Tree | null> =>
     return (s && demoMyTree(s)) || (DEMO_TREES.find((t) => t.slug === slug) ?? null);
   }
   const supabase = await createClient();
-  const { data } = await supabase.from("trees").select(TREE_COLUMNS).eq("slug", slug).maybeSingle();
-  return data as Tree | null;
+  const { data, error } = await supabase.from("trees").select(TREE_COLUMNS).eq("slug", slug).maybeSingle();
+  if (error) throw error; // 조회 실패를 "없는 트리"(404)로 보이게 하지 않는다 (spec.md 2.3)
+  const tree = data as Tree | null;
+  if (!tree) return null;
+  // 허락 대기 트리(is_open = false)는 없는 트리로 처리한다 (spec.md 4.6): 링크로 들어와도 열리지 않고,
+  // 편지를 쓸 수도 없다. 예외는 관리자와 트리 주인 — 열기 전에 자기 트리를 확인할 수 있어야 한다.
+  if (!tree.is_open) {
+    const user = await getUser();
+    if (!user) return null;
+    if (user.id === tree.owner_id) return tree;
+    const profile = await getProfile();
+    return profile?.is_admin ? tree : null;
+  }
+  return tree;
 });
 
 export async function getMyTree(userId: string): Promise<Tree | null> {
@@ -169,8 +186,9 @@ export async function getMyTree(userId: string): Promise<Tree | null> {
     return s ? demoMyTree(s) : null;
   }
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("trees").select(TREE_COLUMNS).eq("owner_id", userId).eq("kind", "user").maybeSingle();
+  if (error) throw error; // 없음(null)과 실패를 구분한다 (spec.md 2.3)
   return data as Tree | null;
 }
 
@@ -184,7 +202,8 @@ export async function getOwnedSpecialTrees(userId: string): Promise<Tree[]> {
 export async function getOrnaments(treeId: string): Promise<OrnamentRow[]> {
   if (!isConfigured) return demoOrnaments(treeId);
   const supabase = await createClient();
-  const { data } = await supabase.rpc("get_ornaments", { p_tree_id: treeId });
+  const { data, error } = await supabase.rpc("get_ornaments", { p_tree_id: treeId });
+  if (error) throw error; // 장식이 0개인 트리와 조회 실패를 구분한다 (spec.md 2.3)
   return (data ?? []) as OrnamentRow[];
 }
 
@@ -272,7 +291,8 @@ export async function getLettersByReadKey(slug: string, key: string): Promise<Le
 // ---------- 교수님 목록·관리자 (spec.md 2.3, 4.6) ----------
 // 오류 계약(spec.md 2.3): 없으면 빈 배열, 조회 실패는 throw → app/error.tsx
 export type ProfessorRow = {
-  id: string; slug: string; owner_name: string; department: string | null;
+  // slug 는 트리가 열렸을 때만 있다 — 허락 대기 트리는 주소를 알려 주지 않는다 (spec.md 4.6, 0006)
+  id: string; slug: string | null; owner_name: string; department: string | null;
   is_open: boolean; like_count: number; liked_by_me: boolean;
 };
 
@@ -282,7 +302,8 @@ export async function getProfessors(): Promise<ProfessorRow[]> {
     const likes = (await readDemoSession())?.likes ?? [];
     return DEMO_PROFESSORS
       .map((p) => ({
-        id: p.id, slug: p.slug, owner_name: p.owner_name, department: p.department, is_open: p.is_open,
+        // 실서버(list_professors)와 같게: 허락 대기면 slug 없음
+        id: p.id, slug: p.is_open ? p.slug : null, owner_name: p.owner_name, department: p.department, is_open: p.is_open,
         like_count: p.like_count + (likes.includes(p.id) ? 1 : 0), liked_by_me: likes.includes(p.id),
       }))
       .sort((a, b) => b.like_count - a.like_count || a.owner_name.localeCompare(b.owner_name, "ko"));

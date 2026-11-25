@@ -13,13 +13,35 @@ const PREVIEW = ["ball-red", "jigok", "sock", "star", "coffee", "aplus", "gift",
   (t, i) => ({ id: `p${i}`, ornament_type: t, nickname: ["룸메", "동기", "익명의 산타", "과대", "조원"][i % 5] }),
 );
 
+/**
+ * 홈의 "내 트리" 카드용 조회. `getMyTree()`는 /me·/create 처럼 내 트리가 반드시 있어야 하는 화면을 위해
+ * 조회 실패를 throw 한다 (spec.md 2.3). 그런데 홈은 로그인한 모든 방문자가 부르는 화면이라, DB 가 잠깐
+ * 느려지기만 해도 전원이 "잠시 문제가 생겼어요"를 보게 된다.
+ * 홈에서만 실패를 삼키고 "내 트리" 카드만 빼고 나머지를 그린다 (숫자가 틀려도 홈은 떠야 한다).
+ * 실패를 "트리 없음"과 섞지 않으려고 failed 를 따로 돌려준다 — "내 트리 만들기"로 잘못 안내하지 않게.
+ */
+async function getHomeTreeState(
+  userId: string | undefined,
+): Promise<{ tree: Awaited<ReturnType<typeof getMyTree>>; failed: boolean }> {
+  if (!userId) return { tree: null, failed: false };
+  try {
+    return { tree: await getMyTree(userId), failed: false };
+  } catch {
+    return { tree: null, failed: true };
+  }
+}
+
 export default async function Home({ searchParams }: { searchParams: Promise<{ dday?: string }> }) {
   const { dday } = await searchParams;
   const [user, stats, revealAt] = await Promise.all([getUser(), getStats(), getRevealAt()]);
   const season = getSeason(Date.now(), revealAt, parseForcedDday(dday, demoMode || process.env.NODE_ENV !== "production"));
-  const myTree = user ? await getMyTree(user.id) : null;
+  const { tree: myTree, failed: treeLoadFailed } = await getHomeTreeState(user?.id);
   // 받은 편지 수: 장식 개수로 센다 (spec.md 2.3). 많아지면 서버가 getLetterCount로 바꾼다
-  const letterCount = myTree ? (await getOrnaments(myTree.id)).length : 0;
+  // 홈은 로그인한 모든 방문자가 보는 화면이라 이 조회도 실패를 삼킨다 — 숫자가 틀려도 홈은 뜬다 (spec.md 2.3)
+  let letterCount = 0;
+  if (myTree) {
+    try { letterCount = (await getOrnaments(myTree.id)).length; } catch { letterCount = 0; }
+  }
 
   return (
     <main className="relative min-h-dvh overflow-x-hidden" style={{ background: "linear-gradient(#0b2036, #1c4566 55%, #2b5d7d)" }}>
@@ -59,6 +81,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
             </div>
             <Link href={`/t/${myTree.slug}`} className="btn btn-primary w-full text-lg">🎄 내 트리 보러 가기</Link>
             <ShareLinkButtons url={`${SITE_URL}/t/${myTree.slug}`} title={myTree.title} variant="single" />
+          </section>
+        ) : treeLoadFailed ? (
+          // 내 트리 조회만 잠깐 실패한 경우 (spec.md 2.3): 홈 나머지는 그대로, 카드만 대신 안내
+          <section className="mt-4 flex w-full flex-col gap-3">
+            <div className="card px-4 py-3.5 text-left">
+              <p className="text-sm text-slate-600">내 트리를 잠시 불러오지 못했어요. 잠시 뒤 다시 확인해 주세요.</p>
+            </div>
+            <Link href="/" className="btn btn-light w-full">🔄 다시 불러오기</Link>
           </section>
         ) : (
           <section className="mt-4 flex w-full flex-col gap-3">

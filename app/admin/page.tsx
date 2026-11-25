@@ -26,9 +26,12 @@ type FilterId = (typeof FILTERS)[number]["id"];
 
 // 액션이 /admin?toast=… 로 보내면 화면 아래 알림 (spec.md 5.1)
 const TOASTS: Record<string, string> = {
+  created: "교수님 트리를 허락 대기로 만들었어요",
   opened: "트리를 열었어요",
   closed: "트리를 닫았어요",
   link_issued: "열람 링크를 만들었어요. 복사해서 교수님께 보내 주세요",
+  restored: "편지를 되살렸어요",
+  deleted: "편지를 지웠어요",
   failed: "저장하지 못했어요. 잠시 후 다시 시도해 주세요.",
   demo: "데모라 저장되지 않아요",
 };
@@ -136,6 +139,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                     <form action={adminSetTreeOpen}>
                       <input type="hidden" name="tree_id" value={t.id} />
                       <input type="hidden" name="open" value="1" />
+                      <input type="hidden" name="filter" value={filter} />
                       <ConfirmSubmitButton
                         confirm={`${t.owner_name}께 허락을 받았나요? 트리를 열면 누구나 편지를 쓸 수 있어요.`}
                         pendingLabel="여는 중…" className="btn btn-primary w-full whitespace-nowrap !px-2 !py-2 text-[13px]"

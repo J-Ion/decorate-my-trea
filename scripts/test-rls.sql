@@ -34,6 +34,18 @@ end $$;
 \i supabase/migrations/0004_table_grants.sql
 \i supabase/migrations/0005_professor_read_link.sql
 
+-- 0006 이전에 REST 로 직접 넣은 값처럼, 일반 트리에 chalkboard 가 저장돼 있는 상태를 흉내 낸다.
+-- 0006 는 이 값을 지우지 않고 기본 테마로 되돌린 뒤 제약을 건다.
+update public.trees set theme = 'chalkboard' where slug = 'user-old';
+\i supabase/migrations/0006_s21_constraints_and_rpcs.sql
+\echo '--- 0006: 일반 트리에 저장돼 있던 chalkboard 를 기본 테마로 되돌린다'
+do $$ begin
+  if (select theme from public.trees where slug = 'user-old') <> 'classic' then
+    raise exception 'SHOULD RESET user tree chalkboard to classic';
+  end if;
+  raise notice 'ok: user tree chalkboard reset to classic';
+end $$;
+
 insert into auth.users (id, raw_user_meta_data) values
  ('00000000-0000-0000-0000-00000000000a', '{"name":"주인"}'),
  ('00000000-0000-0000-0000-00000000000b', '{"name":"남"}');
@@ -290,6 +302,232 @@ do $$ begin
   if coalesce(public.check_read_key('prof-kim', null), false) then raise exception 'null key matched null read_key'; end if;
   if (select count(*) from public.get_letters_by_read_key('prof-kim', null)) <> 0 then raise exception 'null key returned letters'; end if;
   raise notice 'ok: empty/null/short/wrong key rejected';
+end $$;
+
+-- =========================================================
+-- 0006: 칠판 테마 제약 · 관리자 특별 트리 생성 RPC · 허락 대기 slug 숨김 (spec.md 4.6 · 4.7)
+--   0003 을 다시 실행하면 list_professors()·admin_set_tree_open() 이 예전 정의로 돌아가므로,
+--   최신 정의(0006)를 여기서 다시 적용한다 — 재실행해도 안전한지도 함께 확인된다.
+-- =========================================================
+\echo '--- 0006 다시 적용 (0003 재실행 뒤에도 최신 정의가 남는다)'
+reset role;
+\i supabase/migrations/0006_s21_constraints_and_rpcs.sql
+
+\echo '--- 0006: 일반 트리 주인이 theme=chalkboard 로 바꾸기 (실패해야 함 — check 제약)'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000b';
+do $$
+declare v_theme text;
+begin
+  select theme into v_theme from public.trees where id = '10000000-0000-0000-0000-000000000004';
+  begin
+    update public.trees set theme = 'chalkboard' where id = '10000000-0000-0000-0000-000000000004';
+  exception when check_violation then
+    raise notice 'ok: chalkboard denied on user tree';
+  end;
+  if (select theme from public.trees where id = '10000000-0000-0000-0000-000000000004') <> v_theme then
+    raise exception 'SHOULD NOT SAVE chalkboard on user tree';
+  end if;
+end $$;
+
+\echo '--- 0006: 교수님 트리는 chalkboard 를 그대로 쓸 수 있다 (제약은 일반 트리만)'
+reset role; update public.trees set theme = 'chalkboard' where id = '10000000-0000-0000-0000-000000000003';
+do $$ begin
+  if (select theme from public.trees where id = '10000000-0000-0000-0000-000000000003') <> 'chalkboard' then
+    raise exception 'SHOULD ALLOW chalkboard on professor tree';
+  end if;
+  raise notice 'ok: chalkboard allowed on professor tree';
+end $$;
+
+\echo '--- 0006: admin_create_special_tree — 일반 사용자는 만들 수 없다'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000b';
+do $$
+declare v jsonb;
+begin
+  v := public.admin_create_special_tree('남의 교수님 트리', '남 교수님', 'prof-evil');
+  if v ->> 'error' <> 'not_allowed' then raise exception 'expected not_allowed, got %', v; end if;
+  if exists (select 1 from public.trees where slug = 'prof-evil') then raise exception 'SHOULD NOT CREATE'; end if;
+  raise notice 'ok: non-admin cannot create special tree';
+end $$;
+
+\echo '--- 0006: admin_create_special_tree — anon 은 실행 권한이 없다'
+reset role; set role anon;
+do $$ begin
+  perform public.admin_create_special_tree('교수님 트리', '교수님', 'prof-anon');
+  raise exception 'SHOULD NOT CALL';
+exception when insufficient_privilege then raise notice 'ok: anon cannot create special tree'; end $$;
+
+\echo '--- 0006: 관리자가 만들면 허락 대기(is_open=false)로 만들어진다'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000a';
+do $$
+declare
+  v jsonb;
+  r record;
+begin
+  v := public.admin_create_special_tree('새 교수님 트리', '새 교수님', 'prof-new', 'professor', 'chalkboard', 'cse', '한 학기 동안 감사했습니다');
+  if (v ->> 'ok')::boolean is not true then raise exception 'expected ok, got %', v; end if;
+  select slug, kind, theme, is_open, owner_id, department, description into r
+    from public.trees where id = (v ->> 'id')::uuid;
+  if r.slug <> 'prof-new' then raise exception 'slug lost: %', r.slug; end if;
+  if r.is_open then raise exception 'SHOULD CREATE CLOSED (허락 대기)'; end if;
+  if r.kind <> 'professor' or r.theme <> 'chalkboard' then raise exception 'wrong kind/theme: % / %', r.kind, r.theme; end if;
+  if r.owner_id <> '00000000-0000-0000-0000-00000000000a' then raise exception 'owner should be the admin who made it'; end if;
+  if r.department <> 'cse' then raise exception 'department lost'; end if;
+  if r.description <> '한 학기 동안 감사했습니다' then raise exception 'description lost'; end if;
+  raise notice 'ok: 관리자가 만든 교수님 트리는 허락 대기로 시작 (made by %)', v ->> 'slug';
+end $$;
+
+\echo '--- 0006: admin_create_special_tree — 잘못된 입력은 코드로 돌려준다'
+do $$
+declare v jsonb;
+begin
+  v := public.admin_create_special_tree('', '이름', 'prof-x1');
+  if v ->> 'error' <> 'invalid_title' then raise exception 'expected invalid_title, got %', v; end if;
+  v := public.admin_create_special_tree('제목', '', 'prof-x2');
+  if v ->> 'error' <> 'invalid_owner_name' then raise exception 'expected invalid_owner_name, got %', v; end if;
+  v := public.admin_create_special_tree('제목', '이름', 'BAD SLUG');
+  if v ->> 'error' <> 'invalid_slug' then raise exception 'expected invalid_slug, got %', v; end if;
+  v := public.admin_create_special_tree('제목', '이름', 'prof-new');
+  if v ->> 'error' <> 'slug_taken' then raise exception 'expected slug_taken, got %', v; end if;
+  v := public.admin_create_special_tree('제목', '이름', null, 'user');
+  if v ->> 'error' <> 'invalid_kind' then raise exception 'expected invalid_kind, got %', v; end if;
+  v := public.admin_create_special_tree('제목', '이름', 'prof-x3', 'professor', 'nope');
+  if v ->> 'error' <> 'invalid_theme' then raise exception 'expected invalid_theme, got %', v; end if;
+  v := public.admin_create_special_tree('제목', '이름', 'prof-x4', 'professor', 'chalkboard', 'nope');
+  if v ->> 'error' <> 'invalid_department' then raise exception 'expected invalid_department, got %', v; end if;
+  if (select count(*) from public.trees where slug like 'prof-x%') <> 0 then raise exception 'SHOULD NOT CREATE on invalid input'; end if;
+  raise notice 'ok: 잘못된 입력은 error 코드로 (예외 문장 노출 없음)';
+end $$;
+
+\echo '--- 0006: list_professors() 는 허락 대기 트리의 slug 를 숨긴다'
+reset role; set role anon;
+do $$
+declare
+  r record;
+  v_open int := 0;
+  v_closed int := 0;
+begin
+  for r in select slug, is_open from public.list_professors() loop
+    if r.is_open then
+      if r.slug is null then raise exception 'open tree must keep its slug'; end if;
+      v_open := v_open + 1;
+    else
+      if r.slug is not null then raise exception 'LEAK: closed tree slug %', r.slug; end if;
+      v_closed := v_closed + 1;
+    end if;
+  end loop;
+  if v_open = 0 or v_closed = 0 then
+    raise exception 'need both open and closed professor trees (open %, closed %)', v_open, v_closed;
+  end if;
+  raise notice 'ok: 닫힌 트리 slug 숨김 (열림 % · 닫힘 %)', v_open, v_closed;
+end $$;
+select slug, is_open, like_count, liked_by_me from public.list_professors();
+
+\echo '--- 0006: admin_set_tree_open 은 일반 트리를 대상으로 하지 않는다'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000a';
+do $$
+declare v_before boolean;
+begin
+  select is_open into v_before from public.trees where id = '10000000-0000-0000-0000-000000000004';
+  begin
+    perform public.admin_set_tree_open('10000000-0000-0000-0000-000000000004', not v_before);
+  exception when others then
+    raise notice 'ok: 일반 트리는 admin_set_tree_open 대상이 아님 (%)', sqlerrm;
+  end;
+  if (select is_open from public.trees where id = '10000000-0000-0000-0000-000000000004') <> v_before then
+    raise exception 'SHOULD NOT CHANGE is_open of a user tree';
+  end if;
+end $$;
+
+\echo '--- 0006: 관리자는 새 교수님 트리를 열 수 있다 (허락 받은 뒤)'
+do $$
+begin
+  perform public.admin_set_tree_open((select id from public.trees where slug = 'prof-new'), true);
+  if not (select is_open from public.trees where slug = 'prof-new') then
+    raise exception 'SHOULD OPEN the professor tree';
+  end if;
+  raise notice 'ok: 관리자가 교수님 트리를 열었다';
+end $$;
+
+\echo '--- 0006: 닫힌 트리는 목록에서 slug 가 null, 열면 slug 가 다시 보인다'
+reset role; update public.trees set is_open = false where slug = 'prof-new';
+set role anon;
+select slug, is_open from public.list_professors() where owner_name = '새 교수님';
+do $$ begin
+  if (select slug from public.list_professors() where owner_name = '새 교수님') is not null then
+    raise exception 'LEAK: closed tree slug';
+  end if;
+  raise notice 'ok: 다시 닫으면 slug 가 다시 숨는다';
+end $$;
+
+\echo '--- 0006 을 다시 실행해도 열린 트리·제약이 그대로다'
+reset role;
+\i supabase/migrations/0006_s21_constraints_and_rpcs.sql
+do $$ begin
+  if not (select is_open from public.trees where id = '10000000-0000-0000-0000-000000000002') then
+    raise exception 'SHOULD KEEP opened professor tree open after re-running 0006';
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'trees_chalkboard_professor_only') then
+    raise exception 'chalkboard constraint missing after re-run';
+  end if;
+  raise notice 'ok: re-run 0006 keeps trees open and the constraint in place';
+end $$;
+
+-- =========================================================
+-- 0006: 허락 대기 트리는 테이블에서도 주인·관리자만 (spec.md 4.6)
+--   list_professors() 의 slug 숨김과 별개로, 앱이 쓰는 anon·authenticated 키로 trees 를
+--   직접 조회했을 때(REST: GET /rest/v1/trees?kind=eq.professor&is_open=eq.false&select=slug)
+--   닫힌 트리가 보이지 않는지 역할마다 확인한다.
+-- =========================================================
+\echo '--- 0006: anon 이 trees 를 직접 읽어도 허락 대기 트리 주소는 없다'
+-- 앞 절에서 남은 JWT sub 가 있으면 auth.uid() 가 맞아떨어져 행이 보인다. 실제 anon 키처럼 sub 를 비운다.
+reset role; set request.jwt.sub = ''; set role anon;
+\echo '   (리뷰 지적의 쿼리 모양 그대로: kind=professor · is_open=false · select=slug)'
+select count(*) as closed_slugs_seen_by_anon from public.trees where kind = 'professor' and is_open = false;
+do $$ begin
+  if exists (select 1 from public.trees where kind = 'professor' and is_open = false) then
+    raise exception 'LEAK: anon sees a closed professor tree';
+  end if;
+  if exists (select 1 from public.trees where slug = 'prof-new') then
+    raise exception 'LEAK: anon read a closed tree slug';
+  end if;
+  if not exists (select 1 from public.trees where slug = 'prof-lee' and is_open) then
+    raise exception 'open professor tree must stay readable for anon';
+  end if;
+  if not exists (select 1 from public.trees where slug = 'user-old') then
+    raise exception 'user tree must stay readable for anon';
+  end if;
+  raise notice 'ok: anon sees open·user trees only';
+end $$;
+select slug, kind, is_open from public.trees order by kind, slug;
+
+\echo '--- 0006: 다른 로그인 사용자에게도 남의 닫힌 트리는 안 보인다 (내 트리는 보인다)'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  if exists (select 1 from public.trees where slug in ('prof-new', 'prof-old')) then
+    raise exception 'LEAK: other user sees a closed tree';
+  end if;
+  if not exists (select 1 from public.trees where slug = 'b-tree') then
+    raise exception 'own tree must stay readable';
+  end if;
+  raise notice 'ok: 다른 사용자는 남의 닫힌 트리를 못 본다';
+end $$;
+
+\echo '--- 0006: 트리 주인은 자기 닫힌 트리를 주소로 볼 수 있다 (getTreeBySlug 의 주인 예외)'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000c';
+do $$ begin
+  if not exists (select 1 from public.trees where slug = 'prof-old' and not is_open) then
+    raise exception 'owner must see own closed tree';
+  end if;
+  raise notice 'ok: 주인은 자기 닫힌 트리를 본다';
+end $$;
+
+\echo '--- 0006: 관리자는 닫힌 트리를 본다 (열어 주기 전에 확인)'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000a';
+do $$ begin
+  if not exists (select 1 from public.trees where slug = 'prof-new' and not is_open) then
+    raise exception 'admin must see closed tree';
+  end if;
+  raise notice 'ok: 관리자는 닫힌 트리를 본다';
 end $$;
 
 \echo '=== 공개 시각을 과거로 ==='

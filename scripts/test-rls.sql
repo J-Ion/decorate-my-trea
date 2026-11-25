@@ -468,6 +468,64 @@ do $$ begin
   raise notice 'ok: re-run 0006 keeps trees open and the constraint in place';
 end $$;
 
+-- =========================================================
+-- 0006: 허락 대기 트리는 테이블에서도 주인·관리자만 (spec.md 4.6)
+--   list_professors() 의 slug 숨김과 별개로, 앱이 쓰는 anon·authenticated 키로 trees 를
+--   직접 조회했을 때(REST: GET /rest/v1/trees?kind=eq.professor&is_open=eq.false&select=slug)
+--   닫힌 트리가 보이지 않는지 역할마다 확인한다.
+-- =========================================================
+\echo '--- 0006: anon 이 trees 를 직접 읽어도 허락 대기 트리 주소는 없다'
+-- 앞 절에서 남은 JWT sub 가 있으면 auth.uid() 가 맞아떨어져 행이 보인다. 실제 anon 키처럼 sub 를 비운다.
+reset role; set request.jwt.sub = ''; set role anon;
+\echo '   (리뷰 지적의 쿼리 모양 그대로: kind=professor · is_open=false · select=slug)'
+select count(*) as closed_slugs_seen_by_anon from public.trees where kind = 'professor' and is_open = false;
+do $$ begin
+  if exists (select 1 from public.trees where kind = 'professor' and is_open = false) then
+    raise exception 'LEAK: anon sees a closed professor tree';
+  end if;
+  if exists (select 1 from public.trees where slug = 'prof-new') then
+    raise exception 'LEAK: anon read a closed tree slug';
+  end if;
+  if not exists (select 1 from public.trees where slug = 'prof-lee' and is_open) then
+    raise exception 'open professor tree must stay readable for anon';
+  end if;
+  if not exists (select 1 from public.trees where slug = 'user-old') then
+    raise exception 'user tree must stay readable for anon';
+  end if;
+  raise notice 'ok: anon sees open·user trees only';
+end $$;
+select slug, kind, is_open from public.trees order by kind, slug;
+
+\echo '--- 0006: 다른 로그인 사용자에게도 남의 닫힌 트리는 안 보인다 (내 트리는 보인다)'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  if exists (select 1 from public.trees where slug in ('prof-new', 'prof-old')) then
+    raise exception 'LEAK: other user sees a closed tree';
+  end if;
+  if not exists (select 1 from public.trees where slug = 'b-tree') then
+    raise exception 'own tree must stay readable';
+  end if;
+  raise notice 'ok: 다른 사용자는 남의 닫힌 트리를 못 본다';
+end $$;
+
+\echo '--- 0006: 트리 주인은 자기 닫힌 트리를 주소로 볼 수 있다 (getTreeBySlug 의 주인 예외)'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000c';
+do $$ begin
+  if not exists (select 1 from public.trees where slug = 'prof-old' and not is_open) then
+    raise exception 'owner must see own closed tree';
+  end if;
+  raise notice 'ok: 주인은 자기 닫힌 트리를 본다';
+end $$;
+
+\echo '--- 0006: 관리자는 닫힌 트리를 본다 (열어 주기 전에 확인)'
+reset role; set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000a';
+do $$ begin
+  if not exists (select 1 from public.trees where slug = 'prof-new' and not is_open) then
+    raise exception 'admin must see closed tree';
+  end if;
+  raise notice 'ok: 관리자는 닫힌 트리를 본다';
+end $$;
+
 \echo '=== 공개 시각을 과거로 ==='
 reset role; update public.app_config set reveal_at = now() - interval '1 minute';
 set role authenticated; set request.jwt.sub = '00000000-0000-0000-0000-00000000000a';

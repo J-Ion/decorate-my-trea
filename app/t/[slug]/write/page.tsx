@@ -12,6 +12,9 @@ export default async function WritePage({ params, searchParams }: Params) {
   const { dday } = await searchParams;
   const tree = await getTreeBySlug(slug);
   if (!tree) notFound();
+  // 허락 대기 트리에는 편지를 쓸 수 없다 (spec.md 4.6): 주인·관리자는 주소로 트리를 볼 수 있지만
+  // submit_letter() 는 닫힌 트리를 거부하므로, 작성 화면 자체를 없는 화면으로 보낸다.
+  if (!tree.is_open) notFound();
 
   // 1단계 미리보기용: 트리 화면과 같은 장식·전구 단계 (spec.md 3장, C13). 편지 본문·고백 여부는 넘기지 않는다
   const [ornaments, revealAt] = await Promise.all([getOrnaments(tree.id), getRevealAt()]);

@@ -163,3 +163,25 @@ grant execute on function public.admin_set_tree_open(uuid, boolean) to authentic
 
 comment on function public.admin_set_tree_open(uuid, boolean)
   is '관리자: 교수님·특별 트리 허락 상태 바꾸기 (일반 트리는 대상 아님) — spec.md 4.6';
+
+-- ---------- 5) 허락 대기 트리는 테이블에서도 주인·관리자만 (spec.md 4.6) ----------
+-- 3)은 list_professors() 가 돌려주는 slug 만 숨겼다. 0001 의 trees SELECT 정책이 using (true) 라서
+-- 공개 anon 키로 GET /rest/v1/trees?kind=eq.professor&is_open=eq.false&select=slug 를 부르면
+-- 허락 대기 트리의 주소가 그대로 나왔다 (REST 는 함수가 아니라 테이블을 읽는다).
+-- 행 제한은 RLS 가 한다: 일반 트리·열린 트리는 누구나, 닫힌 특별 트리는 주인과 관리자만.
+-- list_professors()·admin_list_special_trees()·submit_letter()·get_letters_by_read_key() 는
+-- security definer 라 이 정책과 무관하게 자기 규칙(허락 대기는 slug 없음·편지 거부)을 지킨다.
+drop policy if exists "trees readable" on public.trees;
+create policy "trees readable" on public.trees for select
+  using (
+    kind = 'user'
+    or is_open
+    or auth.uid() = owner_id
+    or public.is_admin()
+  );
+
+comment on policy "trees readable" on public.trees
+  is '일반 트리·열린 트리는 누구나, 허락 대기 특별 트리는 주인·관리자만 (spec.md 4.6)';
+
+-- 수정한 0006 을 다시 실행할 때도 같은 정책이 남는다 (drop if exists → create).
+-- 0006 의 SQL Editor 실행 결과에는 정책 목록을 함께 확인한다.
